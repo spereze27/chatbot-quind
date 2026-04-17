@@ -131,7 +131,7 @@ async function conectarWhatsApp() {
                 code = code?.match(/.{1,4}/g)?.join("-") || code;
                 console.log(`\n======================================================`);
                 console.log(`📲 TU CÓDIGO DE VINCULACIÓN ES: ${code}`);
-                console.log(`======================================================\n`);
+                console.log(`=====================================================\n`);
             } catch (err) {
                 console.log("⚠️ Error pidiendo código de vinculación:", err);
             }
