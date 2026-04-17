@@ -7,7 +7,7 @@ const express = require('express'); // Requerido por Cloud Run
 const app = express();
 const port = process.env.PORT || 8080;
 app.get('/', (req, res) => res.send('🤖 QuindBot está activo y escuchando en la nube!'));
-app.listen(port, () => console.log(`🌐 Servidor Express escuchando en puerto ${port} (Requerido para CI/CD)`));
+app.listen(port, '0.0.0.0', () => console.log(`🌐 Servidor Express escuchando en 0.0.0.0:${port} (Requerido para CI/CD)`));
 
 // 1. CREDENCIALES
 console.log("🔑 [2/6] Ruta de credenciales configurada.");
