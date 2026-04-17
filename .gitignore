@@ -1,0 +1,38 @@
+# ==========================================
+# 🚫 IGNORAR CREDENCIALES Y LLAVES (CRÍTICO)
+# ==========================================
+credenciales.json
+credenciales-github.json
+*.pem
+*.key
+.env
+
+# ==========================================
+# 📱 IGNORAR SESIONES DE WHATSAPP (CRÍTICO)
+# ==========================================
+# Si subes esto, cualquiera podría clonar la sesión de tu bot
+sesion_wa_limpia/
+auth_info_baileys/
+auth_info/
+
+# ==========================================
+# 📦 IGNORAR DEPENDENCIAS DE NODE.JS
+# ==========================================
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# ==========================================
+# 🐍 IGNORAR ENTORNO VIRTUAL PYTHON (Tu .venv)
+# ==========================================
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+
+# ==========================================
+# 💻 IGNORAR ARCHIVOS DEL SISTEMA OPERATIVO
+# ==========================================
+.DS_Store
+Thumbs.db

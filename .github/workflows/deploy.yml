@@ -1,0 +1,45 @@
+name: Deploy QuindBot to Cloud Run
+
+on:
+  push:
+    branches:
+      - main # Se activa al hacer push a la rama principal
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1
+  SERVICE_NAME: quindbot-service
+  BUCKET_NAME: bkt-wa-session-data # El bucket que creamos para la sesión
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔐 Google Auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: 🏗️ Build and Push Container
+        # Usamos Cloud Build para crear la imagen de Docker sin necesidad de instalar Docker en el runner
+        run: |
+          gcloud builds submit --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }} .
+
+      - name: 🚀 Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.REGION }}
+          image: gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}
+          # Configuración de persistencia y variables de entorno
+          flags: |
+            --min-instances=1
+            --no-cpu-throttling
+            --add-volume=name=wa-session,type=cloud-storage,bucket=${{ env.BUCKET_NAME }}
+            --add-volume-mount=name=wa-session,mount-path=/usr/src/app/sesion_wa_limpia
+          env_vars: |
+            PROJECT_ID=${{ env.PROJECT_ID }}
+            DATA_STORE_ID=${{ secrets.DATA_STORE_ID }}
