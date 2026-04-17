@@ -147,11 +147,31 @@ async function conectarWhatsApp() {
         syncFullHistory: false
     });
 
+    // 🚀 --- NUEVO: LÓGICA DE CÓDIGO DE VINCULACIÓN --- 🚀
+    if (!sock.authState.creds.registered) {
+        // Número con indicativo de Colombia (57)
+        const numeroBot = "573003094183"; 
+        
+        setTimeout(async () => {
+            try {
+                const code = await sock.requestPairingCode(numeroBot);
+                console.log(`\n======================================================`);
+                console.log(`📲 TU CÓDIGO DE VINCULACIÓN ES: ${code}`);
+                console.log(`======================================================\n`);
+            } catch (err) {
+                console.log("⚠️ Error pidiendo código de vinculación:", err);
+            }
+        }, 3000); // Esperamos 3 segundos a que Baileys se estabilice
+    }
+
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', async (update) => {
         const { connection, qr, lastDisconnect } = update;
-        if (qr) qrcode.generate(qr, { small: true });
+        
+        // Silenciamos el QR para que no ensucie la consola
+        // if (qr) qrcode.generate(qr, { small: true }); 
+        
         if (connection === 'close') {
             const reason = lastDisconnect?.error?.output?.statusCode;
             if (reason !== 401) conectarWhatsApp();
@@ -182,7 +202,6 @@ async function conectarWhatsApp() {
             if (docMessage.mimetype === 'application/pdf') {
                 console.log(`\n📥 Recibido PDF. Descargando stream...`);
                 try {
-                    // USO DE STREAM ROBUSTO PARA EVITAR "DOCUMENT HAS NO PAGES"
                     const stream = await downloadContentFromMessage(docMessage, 'document');
                     let buffer = Buffer.from([]);
                     for await(const chunk of stream) {
@@ -221,5 +240,3 @@ async function conectarWhatsApp() {
         }
     });
 }
-
-conectarWhatsApp().catch(err => console.error("💥 ERROR CRÍTICO:", err));
