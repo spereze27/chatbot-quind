@@ -39,7 +39,7 @@ jobs:
             --min-instances=1
             --no-cpu-throttling
             --add-volume=name=wa-session,type=cloud-storage,bucket=${{ env.BUCKET_NAME }}
-            --add-volume-mount=name=wa-session,mount-path=/usr/src/app/sesion_wa_limpia
+            --add-volume-mount=volume=wa-session,mount-path=/usr/src/app/sesion_wa_limpia
           env_vars: |
             PROJECT_ID=${{ env.PROJECT_ID }}
             DATA_STORE_ID=${{ secrets.DATA_STORE_ID }}
