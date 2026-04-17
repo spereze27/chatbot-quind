@@ -1,35 +1,32 @@
 console.log("🚀 [1/6] Iniciando script app.js...");
 
 const path = require('path');
-const express = require('express'); // Requerido por Cloud Run
+const express = require('express');
 
 // --- CONFIGURACIÓN DE SERVIDOR WEB PARA CLOUD RUN ---
 const app = express();
 const port = process.env.PORT || 8080;
 app.get('/', (req, res) => res.send('🤖 QuindBot está activo y escuchando en la nube!'));
-app.listen(port, '0.0.0.0', () => console.log(`🌐 Servidor Express escuchando en 0.0.0.0:${port} (Requerido para CI/CD)`));
+app.listen(port, '0.0.0.0', () => console.log(`🌐 Servidor Express escuchando en 0.0.0.0:${port}`));
 
-// 1. CREDENCIALES
-console.log("🔑 [2/6] Ruta de credenciales configurada.");
+console.log("🔑 [2/6] Variables de entorno listas.");
 
 const { 
     default: makeWASocket, 
     useMultiFileAuthState, 
     fetchLatestBaileysVersion, 
     Browsers, 
-    downloadContentFromMessage // Función robusta para PDFs 
+    downloadContentFromMessage 
 } = require('@whiskeysockets/baileys');
 const { GoogleGenAI } = require('@google/genai');
 const { BigQuery } = require('@google-cloud/bigquery');
-const qrcode = require('qrcode-terminal');
 const pino = require('pino');
+
+// ⚠️ Se eliminó por completo qrcode-terminal para forzar el código de 8 dígitos
 
 console.log("📦 [3/6] Librerías importadas correctamente.");
 
 // 2. CONFIGURACIÓN GCP
-// Borra la línea de process.env.GOOGLE_APPLICATION_CREDENTIALS
-// Cloud Run inyectará la identidad automáticamente.
-
 const PROJECT_ID = process.env.PROJECT_ID || 'datatest-347114';
 const DATA_STORE_ID = process.env.DATA_STORE_ID || 'documentacion-chatbot_1776440842820';
 const LOCATION = 'global'; 
@@ -45,41 +42,25 @@ try {
     console.error("❌ Error crítico inicializando SDKs:", error);
 }
 
-/**
- * Consulta a BigQuery
- */
 async function consultarDatosCliente(celularUsuario) {
     const numeroLimpio = celularUsuario.split('@')[0];
     const query = `SELECT * FROM \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\` WHERE celular = '${numeroLimpio}' LIMIT 1`;
-    
     try {
         const [rows] = await bigquery.query(query);
-        if (rows.length > 0) {
-            console.log(`✅ Datos encontrados en BigQuery para ${numeroLimpio}.`);
-            return JSON.stringify(rows[0]); 
-        }
+        if (rows.length > 0) return JSON.stringify(rows[0]); 
         return "Cliente no encontrado en BD.";
     } catch (error) {
-        console.error("❌ Error consultando BigQuery:", error);
         return "Error al consultar BD.";
     }
 }
 
-/**
- * Consulta principal a Gemini con Políticas Estrictas de Riesgo
- */
 async function consultarVertex(mensajeUsuario, pdfBase64 = null, datosBigQuery = "") {
-    console.log(`🤖 Procesando consulta en Vertex AI...`);
     try {
         let promptEnriquecido = `Solicitud del cliente: ${mensajeUsuario}\n\nDatos de BigQuery: ${datosBigQuery}`;
-        
         const parts = [{ text: promptEnriquecido }];
         
         if (pdfBase64) {
-            parts.push({
-                inlineData: { mimeType: 'application/pdf', data: pdfBase64 }
-            });
-            console.log("📎 Documento PDF adjuntado.");
+            parts.push({ inlineData: { mimeType: 'application/pdf', data: pdfBase64 } });
         }
 
         const response = await ai.models.generateContent({
@@ -90,45 +71,35 @@ async function consultarVertex(mensajeUsuario, pdfBase64 = null, datosBigQuery =
 
 POLÍTICAS DE CRÉDITO Y CÁLCULOS ESTRICTOS:
 1. Capacidad de Pago Mensual (CPM): Calcula los ingresos mensuales (ingresos_12_meses / 12) y réstale los gastos mensuales (egresos_12_meses / 12).
-2. Perfil de Riesgo y Mora: 
-   - Evalúa 'deuda_actual_tarjetas' vs 'cupo_total_tarjetas'. Si la deuda supera el 75% del cupo, el cliente se considera de ALTO RIESGO (probabilidad de mora alta).
+2. Perfil de Riesgo y Mora: Evalúa 'deuda_actual_tarjetas' vs 'cupo_total_tarjetas'. Si la deuda supera el 75% del cupo, el cliente se considera de ALTO RIESGO.
 3. Cupo Límite de Crédito:
-   - Riesgo Bajo/Medio: El cupo máximo a aprobar es CPM * 5.
-   - Riesgo Alto (por mora/sobreendeudamiento): El cupo máximo se castiga y será solo CPM * 2.
+   - Riesgo Bajo/Medio: CPM * 5.
+   - Riesgo Alto: CPM * 2.
    - Si CPM es negativo: CRÉDITO DENEGADO.
-4. Tasas de Interés (Basado en saldo promedio e ingresos):
-   - Si saldo_promedio_cuentas > 5,000,000 y Riesgo Bajo: Tasa Fija 1.2% M.V. / Tasa Compuesta 15.3% E.A.
-   - Perfil Estándar: Tasa Fija 2.2% M.V. / Tasa Compuesta 29.8% E.A.
+4. Tasas de Interés:
+   - Saldo promedio > 5,000,000 y Riesgo Bajo: Tasa Fija 1.2% M.V. / Tasa Compuesta 15.3% E.A.
+   - Estándar: Tasa Fija 2.2% M.V. / Tasa Compuesta 29.8% E.A.
    - Riesgo Alto: Tasa Fija 2.9% M.V. / Tasa Compuesta 40.9% E.A.
 
-ESTRUCTURA DE TU RESPUESTA:
+ESTRUCTURA DE TU RESPUESTA (Obligatoria):
 - Saludo de 1 línea.
 - Viñetas con: Ingresos Mensuales Estimados, Gastos Mensuales, CPM.
 - Nivel de Riesgo Determinado (Bajo, Medio, Alto).
 - Decisión: Aprobado/Denegado con el Cupo Límite exacto en COP.
 - Tasa Fija (M.V.) y Tasa Compuesta (E.A.) aplicables.
 
-REGLA DE FORMATO DE SALIDA (ESTRICTA):
-Tu respuesta DEBE ser ÚNICA Y EXCLUSIVAMENTE un objeto JSON válido.
+REGLA DE FORMATO (ESTRICTA):
+Tu respuesta DEBE ser ÚNICAMENTE un objeto JSON.
 {
   "clasificacion": "FRAUDE" | "CONSULTA_PRODUCTO" | "SOLICITUD_CREDITO" | "PQR" | "OTRO",
-  "respuesta_usuario": "Texto sintetizado con viñetas según la estructura indicada..."
+  "respuesta_usuario": "Texto sintetizado..."
 }`,
-                tools: [{
-                    retrieval: {
-                        vertexAiSearch: {
-                            datastore: `projects/${PROJECT_ID}/locations/${LOCATION}/collections/default_collection/dataStores/${DATA_STORE_ID}`
-                        }
-                    }
-                }]
+                tools: [{ retrieval: { vertexAiSearch: { datastore: `projects/${PROJECT_ID}/locations/${LOCATION}/collections/default_collection/dataStores/${DATA_STORE_ID}` } } }]
             }
         });
         
-        console.log("✅ Respuesta de IA recibida.");
-        let textoRespuesta = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
-        return JSON.parse(textoRespuesta);
+        return JSON.parse(response.text.replace(/```json/g, '').replace(/```/g, '').trim());
     } catch (error) {
-        console.error("❌ Error interno en consultarVertex:", error);
         throw error;
     }
 }
@@ -142,36 +113,36 @@ async function conectarWhatsApp() {
     const sock = makeWASocket({
         version,
         auth: state,
+        printQRInTerminal: false, // 🚫 Bloqueamos la generación de QRs
         logger: pino({ level: 'silent' }), 
         browser: Browsers.ubuntu('Chrome'),
         syncFullHistory: false
     });
 
-    // 🚀 --- NUEVO: LÓGICA DE CÓDIGO DE VINCULACIÓN --- 🚀
+    // 🚀 LÓGICA DE VINCULACIÓN CON CÓDIGO (PAIRING CODE)
     if (!sock.authState.creds.registered) {
-        // Número con indicativo de Colombia (57)
         const numeroBot = "573003094183"; 
+        console.log(`\n⏳ Solicitando código de vinculación a WhatsApp para el número ${numeroBot}...`);
         
         setTimeout(async () => {
             try {
-                const code = await sock.requestPairingCode(numeroBot);
+                let code = await sock.requestPairingCode(numeroBot);
+                // Le damos formato (ej. ABCD-1234) para que sea fácil de leer
+                code = code?.match(/.{1,4}/g)?.join("-") || code;
                 console.log(`\n======================================================`);
                 console.log(`📲 TU CÓDIGO DE VINCULACIÓN ES: ${code}`);
                 console.log(`======================================================\n`);
             } catch (err) {
                 console.log("⚠️ Error pidiendo código de vinculación:", err);
             }
-        }, 3000); // Esperamos 3 segundos a que Baileys se estabilice
+        }, 3000); 
     }
 
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', async (update) => {
-        const { connection, qr, lastDisconnect } = update;
-        
-        // Silenciamos el QR para que no ensucie la consola
-        // if (qr) qrcode.generate(qr, { small: true }); 
-        
+        const { connection, lastDisconnect } = update;
+        // Limpiamos la recepción del QR de esta función
         if (connection === 'close') {
             const reason = lastDisconnect?.error?.output?.statusCode;
             if (reason !== 401) conectarWhatsApp();
@@ -179,7 +150,6 @@ async function conectarWhatsApp() {
         if (connection === 'open') console.log('\n✅ [6/6] ¡QuindBot ONLINE en WhatsApp!');
     });
 
-    // --- ESCUCHAR MENSAJES ENTRANTES ---
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
         if (type !== 'notify') return;
         const msg = messages[0];
@@ -198,24 +168,15 @@ async function conectarWhatsApp() {
 
         if (docMessage) {
             textoUsuario = docMessage.caption || "Analiza mi perfil para solicitud de crédito con este documento.";
-            
             if (docMessage.mimetype === 'application/pdf') {
-                console.log(`\n📥 Recibido PDF. Descargando stream...`);
                 try {
                     const stream = await downloadContentFromMessage(docMessage, 'document');
                     let buffer = Buffer.from([]);
-                    for await(const chunk of stream) {
-                        buffer = Buffer.concat([buffer, chunk]);
-                    }
-                    
+                    for await(const chunk of stream) buffer = Buffer.concat([buffer, chunk]);
                     pdfBase64 = buffer.toString('base64');
-                    console.log(`✅ PDF descargado (${buffer.length} bytes).`);
-                    
                     if (buffer.length === 0) throw new Error("PDF vacío.");
-
                 } catch (err) {
-                    console.error("❌ Error descargando PDF:", err);
-                    await sock.sendMessage(numeroUsuario, { text: "⚠️ Error técnico: El PDF está dañado o protegido por contraseña. Envíalo sin clave." });
+                    await sock.sendMessage(numeroUsuario, { text: "⚠️ Error técnico: El PDF está dañado o protegido por contraseña." });
                     return;
                 }
             } else {
@@ -225,18 +186,16 @@ async function conectarWhatsApp() {
         }
 
         if (textoUsuario || pdfBase64) {
-            console.log(`\n📩 Procesando solicitud de ${numeroUsuario.split('@')[0]}`);
             await sock.sendMessage(numeroUsuario, { text: "⏳ Evaluando perfil de riesgo..." });
-            
             try {
                 const datosBigQuery = await consultarDatosCliente(numeroUsuario);
                 const respuestaIA = await consultarVertex(textoUsuario, pdfBase64, datosBigQuery);
-                
                 await sock.sendMessage(numeroUsuario, { text: respuestaIA.respuesta_usuario });
             } catch (error) {
-                console.error("❌ Error en análisis:", error);
                 await sock.sendMessage(numeroUsuario, { text: "⚠️ Fallo en el motor de riesgo. Contacte a soporte: 01-8000-QUIND." });
             }
         }
     });
 }
+
+conectarWhatsApp().catch(err => console.error("💥 ERROR CRÍTICO:", err));
