@@ -40,6 +40,7 @@ jobs:
             --no-cpu-throttling
             --add-volume=name=wa-session,type=cloud-storage,bucket=${{ env.BUCKET_NAME }}
             --add-volume-mount=volume=wa-session,mount-path=/usr/src/app/sesion_wa_limpia
+            --service-account=vertex-whatsapp-bot@datatest-347114.iam.gserviceaccount.com
           env_vars: |
             PROJECT_ID=${{ env.PROJECT_ID }}
             DATA_STORE_ID=${{ secrets.DATA_STORE_ID }}
