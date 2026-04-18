@@ -56,7 +56,7 @@ function obtenerSesion(numero) {
         sesion.ultimaActividad = ahora;
         return sesion;
     }
-    const nueva = { cedula: null, nombre: null, telefono: numero, ultimaActividad: ahora, alertaFraude: null, pendingFraudAlert: null };
+    const nueva = { cedula: null, nombre: null, celular: numero, ultimaActividad: ahora, alertaFraude: null, pendingFraudAlert: null };
     sesiones.set(numero, nueva);
     return nueva;
 }
@@ -99,7 +99,7 @@ async function ejecutarQueryBigQuery(sqlQuery) {
 // ─────────────────────────────────────────────
 async function obtenerClientePorCedula(cedula) {
     const resultado = await ejecutarQueryBigQuery(`
-        SELECT nombres, apellidos, cedula, telefono,
+        SELECT nombres, apellidos, cedula, celular,
                deuda_actual_tarjetas, cupo_total_tarjetas, saldo_promedio_cuentas
         FROM \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\`
         WHERE cedula = '${cedula}'
@@ -121,8 +121,8 @@ async function enviarAlertaFraude({ cedula, monto, cuenta, detalle, numeroWhatsA
     console.log(`🚨 Enviando alerta de fraude | cédula: ${cedula} | monto: ${monto}`);
 
     const cliente            = await obtenerClientePorCedula(cedula);
-    const telefonoRegistrado = cliente?.telefono
-        ? `57${String(cliente.telefono).replace(/\D/g, '')}@s.whatsapp.net`
+    const telefonoRegistrado = cliente?.celular
+        ? `57${String(cliente.celular).replace(/\D/g, '')}@s.whatsapp.net`
         : null;
 
     const ahora = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
@@ -169,7 +169,7 @@ Eres analítico, empático y confiable como un gerente de banco experimentado.
 ESQUEMA DE BASE DE DATOS (BigQuery, proyecto: ${PROJECT_ID}):
 ─────────────────────────────────────────────
 TABLA 1: \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\`
-  • nombres (STRING), apellidos (STRING), cedula (STRING), telefono (STRING)
+  • nombres (STRING), apellidos (STRING), cedula (STRING), celular (STRING)
   • deuda_actual_tarjetas (FLOAT), cupo_total_tarjetas (FLOAT), saldo_promedio_cuentas (FLOAT)
 
 TABLA 2: \`${PROJECT_ID}.banco_quind.movimientos_cliente\`
@@ -300,7 +300,7 @@ Responde en texto natural directamente al cliente. Usa viñetas y tablas para cl
 
             } else if (name === 'registrar_alerta_fraude') {
                 // Guardar en sesión para que el handler envíe la alerta después de recibir la respuesta
-                const sesActual = sesiones.get(sesion.telefono);
+                const sesActual = sesiones.get(sesion.celular);
                 if (sesActual) {
                     sesActual.pendingFraudAlert = {
                         monto: args.monto,
