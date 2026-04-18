@@ -1,31 +1,31 @@
-console.log("🚀 [1/6] Iniciando QuindBot Pro - Asesor Bancario Inteligente...");
+console.log("🚀 [1/6] Iniciando QuindBot Pro - Asesor Bancario con Agente Dinámico...");
 
-const path = require('path');
 const express = require('express');
 
 // --- SERVIDOR WEB PARA CLOUD RUN ---
-const app = express();
+const app  = express();
 const port = process.env.PORT || 8080;
 app.get('/', (req, res) => res.send('🤖 QuindBot Pro está activo!'));
 app.listen(port, '0.0.0.0', () => console.log(`🌐 Servidor Express en 0.0.0.0:${port}`));
-
 console.log("🔑 [2/6] Servidor listo.");
 
-const { 
-    default: makeWASocket, 
-    useMultiFileAuthState, 
-    fetchLatestBaileysVersion, 
-    Browsers, 
-    downloadContentFromMessage 
+const {
+    default: makeWASocket,
+    useMultiFileAuthState,
+    fetchLatestBaileysVersion,
+    Browsers,
+    downloadContentFromMessage
 } = require('@whiskeysockets/baileys');
 const { GoogleGenAI } = require('@google/genai');
-const { BigQuery } = require('@google-cloud/bigquery');
-const pino = require('pino');
+const { BigQuery }    = require('@google-cloud/bigquery');
+const pino            = require('pino');
 
 console.log("📦 [3/6] Librerías importadas.");
 
 // ─────────────────────────────────────────────
 // CONFIGURACIÓN GCP
+// IMPORTANTE: Si en Cloud Run el PROJECT_NUMBER difiere del PROJECT_ID,
+// siempre forzar PROJECT_ID via variable de entorno en Cloud Run.
 // ─────────────────────────────────────────────
 const PROJECT_ID    = process.env.PROJECT_ID    || 'datatest-347114';
 const DATA_STORE_ID = process.env.DATA_STORE_ID || 'documentacion-chatbot_1776440842820';
@@ -38,17 +38,16 @@ let ai, bigquery;
 try {
     ai       = new GoogleGenAI({ vertexai: true, project: PROJECT_ID, location: 'us-central1' });
     bigquery = new BigQuery({ projectId: PROJECT_ID });
-    console.log("🧠 [4/6] Google Gen AI y BigQuery inicializados.");
+    console.log(`🧠 [4/6] SDKs inicializados. PROJECT_ID: ${PROJECT_ID}`);
 } catch (e) {
     console.error("❌ Error crítico inicializando SDKs:", e);
 }
 
 // ─────────────────────────────────────────────
-// GESTIÓN DE SESIONES EN MEMORIA
-// TTL: 1 hora de inactividad por usuario
+// GESTIÓN DE SESIONES EN MEMORIA (TTL: 1 hora)
 // ─────────────────────────────────────────────
 const sesiones = new Map();
-const TTL_MS   = 60 * 60 * 1000; // 1 hora
+const TTL_MS   = 60 * 60 * 1000;
 
 function obtenerSesion(numero) {
     const ahora  = Date.now();
@@ -57,211 +56,271 @@ function obtenerSesion(numero) {
         sesion.ultimaActividad = ahora;
         return sesion;
     }
-    // Sesión nueva o expirada
-    const nueva = { cedula: null, nombre: null, ultimaActividad: ahora };
+    const nueva = { cedula: null, nombre: null, telefono: numero, ultimaActividad: ahora, alertaFraude: null, pendingFraudAlert: null };
     sesiones.set(numero, nueva);
     return nueva;
 }
 
-function guardarCedulaEnSesion(numero, cedula, nombre = null) {
+function guardarSesion(numero, datos) {
     const sesion = obtenerSesion(numero);
-    sesion.cedula          = cedula;
-    sesion.nombre          = nombre || sesion.nombre;
+    Object.assign(sesion, datos);
     sesion.ultimaActividad = Date.now();
     sesiones.set(numero, sesion);
-    console.log(`💾 Sesión guardada | ${numero.split('@')[0]} → cédula: ${cedula} | nombre: ${nombre}`);
+    console.log(`💾 Sesión | ${numero.split('@')[0]} → cédula: ${sesion.cedula} | nombre: ${sesion.nombre}`);
 }
 
 // Limpieza periódica cada 30 minutos
 setInterval(() => {
-    const ahora     = Date.now();
-    let eliminadas  = 0;
-    for (const [numero, sesion] of sesiones.entries()) {
-        if ((ahora - sesion.ultimaActividad) >= TTL_MS) {
-            sesiones.delete(numero);
-            eliminadas++;
-        }
+    const ahora = Date.now();
+    let n = 0;
+    for (const [k, v] of sesiones.entries()) {
+        if ((ahora - v.ultimaActividad) >= TTL_MS) { sesiones.delete(k); n++; }
     }
-    if (eliminadas > 0) console.log(`🧹 ${eliminadas} sesión(es) expirada(s) eliminada(s).`);
+    if (n > 0) console.log(`🧹 ${n} sesión(es) expirada(s) eliminada(s).`);
 }, 30 * 60 * 1000);
 
 // ─────────────────────────────────────────────
-// CONSULTA BIGQUERY: Perfil + Movimientos mensuales (últimos 3 meses)
+// EJECUTOR DE QUERIES BIGQUERY
 // ─────────────────────────────────────────────
-async function consultarDatosCliente(cedula) {
-    const query = `
-        WITH movimientos_mensuales AS (
-            SELECT
-                cedula,
-                FORMAT_DATE('%Y-%m', DATE(fecha)) AS mes,
-                SUM(CASE WHEN movimiento > 0 THEN movimiento ELSE 0 END)     AS ingresos_mes,
-                SUM(CASE WHEN movimiento < 0 THEN ABS(movimiento) ELSE 0 END) AS egresos_mes,
-                SUM(movimiento) AS flujo_neto_mes,
-                STRING_AGG(
-                    CASE WHEN movimiento < 0
-                    THEN CONCAT(detalle, ' ($', CAST(ABS(ROUND(movimiento,0)) AS STRING), ')')
-                    ELSE NULL END,
-                    ' | ' ORDER BY ABS(movimiento) DESC LIMIT 5
-                ) AS top_egresos_mes,
-                STRING_AGG(
-                    CASE WHEN movimiento > 0
-                    THEN CONCAT(detalle, ' ($', CAST(ROUND(movimiento,0) AS STRING), ')')
-                    ELSE NULL END,
-                    ' | ' ORDER BY movimiento DESC LIMIT 3
-                ) AS top_ingresos_mes
-            FROM \`${PROJECT_ID}.banco_quind.movimientos_cliente\`
-            WHERE cedula = '${cedula}'
-              AND DATE(fecha) >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH)
-            GROUP BY cedula, mes
-        ),
-        totales AS (
-            SELECT
-                cedula,
-                SUM(ingresos_mes)      AS ingresos_totales_3m,
-                SUM(egresos_mes)       AS egresos_totales_3m,
-                AVG(flujo_neto_mes)    AS flujo_neto_promedio,
-                COUNT(*)               AS meses_con_datos,
-                TO_JSON_STRING(
-                    ARRAY_AGG(
-                        STRUCT(mes, ingresos_mes, egresos_mes, flujo_neto_mes, top_egresos_mes, top_ingresos_mes)
-                        ORDER BY mes DESC
-                    )
-                ) AS detalle_mensual
-            FROM movimientos_mensuales
-            GROUP BY cedula
-        )
-        SELECT
-            c.nombres,
-            c.apellidos,
-            c.cedula,
-            COALESCE(t.ingresos_totales_3m, 0)  AS ingresos_totales_3m,
-            COALESCE(t.egresos_totales_3m, 0)   AS egresos_totales_3m,
-            COALESCE(t.flujo_neto_promedio, 0)  AS flujo_neto_promedio_mensual,
-            COALESCE(t.meses_con_datos, 0)      AS meses_con_datos,
-            COALESCE(t.detalle_mensual, '[]')   AS detalle_mensual,
-            c.deuda_actual_tarjetas,
-            c.cupo_total_tarjetas,
-            c.saldo_promedio_cuentas
-        FROM \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\` c
-        LEFT JOIN totales t ON c.cedula = t.cedula
-        WHERE c.cedula = '${cedula}'
-        LIMIT 1
-    `;
-
+async function ejecutarQueryBigQuery(sqlQuery) {
+    console.log(`\n📊 Query BigQuery:\n${sqlQuery}`);
     try {
-        const [rows] = await bigquery.query(query);
-        if (rows.length > 0) {
-            console.log(`📊 Datos recuperados: ${rows[0].nombres} ${rows[0].apellidos}`);
-            return { estado: 'OK', datos: rows[0] };
-        }
-        return { estado: 'NO_ENCONTRADO' };
+        const [rows] = await bigquery.query(sqlQuery);
+        console.log(`✅ Query OK — ${rows.length} fila(s).`);
+        return { exito: true, filas: rows, total_filas: rows.length };
     } catch (error) {
-        console.error("❌ Error en BigQuery:", error.message);
-        return { estado: 'ERROR', detalle: error.message };
+        console.error("❌ Error BigQuery:", error.message);
+        return { exito: false, error: error.message };
     }
 }
 
 // ─────────────────────────────────────────────
-// VERTEX AI — ASESOR BANCARIO INTELIGENTE
+// LOOKUP DE CLIENTE POR CÉDULA
 // ─────────────────────────────────────────────
-async function consultarVertex({ mensajeUsuario, datosBQ, sesion, pdfBase64 = null }) {
-    try {
-        const contextoCliente = sesion?.nombre
-            ? `\nCLIENTE EN SESIÓN: ${sesion.nombre} | Cédula: ${sesion.cedula}`
-            : '\nCLIENTE: No identificado.';
+async function obtenerClientePorCedula(cedula) {
+    const resultado = await ejecutarQueryBigQuery(`
+        SELECT nombres, apellidos, cedula, telefono,
+               deuda_actual_tarjetas, cupo_total_tarjetas, saldo_promedio_cuentas
+        FROM \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\`
+        WHERE cedula = '${cedula}'
+        LIMIT 1
+    `);
+    if (resultado.exito && resultado.filas.length > 0) return resultado.filas[0];
+    return null;
+}
 
-        const contextoBQ = datosBQ
-            ? `\n\n===DATOS FINANCIEROS REALES (BigQuery)===\n${JSON.stringify(datosBQ, null, 2)}`
-            : '';
+// ─────────────────────────────────────────────
+// SOCK GLOBAL para alertas de fraude
+// ─────────────────────────────────────────────
+let sockGlobal = null;
 
-        const parts = [{ text: `${mensajeUsuario}${contextoCliente}${contextoBQ}` }];
-        if (pdfBase64) parts.push({ inlineData: { mimeType: 'application/pdf', data: pdfBase64 } });
+// ─────────────────────────────────────────────
+// MOTOR DE ALERTAS DE FRAUDE
+// ─────────────────────────────────────────────
+async function enviarAlertaFraude({ cedula, monto, cuenta, detalle, numeroWhatsApp }) {
+    console.log(`🚨 Enviando alerta de fraude | cédula: ${cedula} | monto: ${monto}`);
 
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: [{ role: 'user', parts }],
-            config: {
-                systemInstruction: `Eres "QuindBot", el asesor bancario personal y experto en riesgo crediticio del Banco Quind. Actúas como un gerente de banco experimentado: analítico, empático, directo y confiable.
+    const cliente            = await obtenerClientePorCedula(cedula);
+    const telefonoRegistrado = cliente?.telefono
+        ? `57${String(cliente.telefono).replace(/\D/g, '')}@s.whatsapp.net`
+        : null;
 
-════════════════════════════════════
-REGLAS DE IDENTIFICACIÓN Y SESIÓN
-════════════════════════════════════
-- Si el CLIENTE EN SESIÓN ya tiene nombre y cédula: NUNCA pidas la cédula de nuevo. Usa su nombre directamente.
-- Si el cliente NO está identificado y lo que pide requiere datos: pide su cédula UNA sola vez.
-- Si el cliente inicia conversación sin contexto previo: saluda brevemente y PREGUNTA qué desea hacer. Ofrece estas opciones:
-  1. Análisis de perfil crediticio completo
-  2. Detalle de ingresos y egresos mes a mes
-  3. Simulación de crédito o cuota
-  4. Posición salarial vs mercado colombiano
-  5. PQR o consulta general
+    const ahora = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
 
-════════════════════════════════════
-CAPACIDADES DE ANÁLISIS
-════════════════════════════════════
+    const mensajeAlerta =
+`🚨 *ALERTA DE SEGURIDAD — BANCO QUIND*
 
-1. PERFIL CREDITICIO COMPLETO (cuando hay datos):
-   - Flujo de caja mes a mes: tabla con ingresos, egresos y neto por cada mes
-   - Principal fuente de ingresos (qué concepto aporta más)
-   - Principal fuente de egresos (qué concepto consume más)
-   - Nivel de endeudamiento tarjetas: (deuda / cupo) * 100
-     · < 30% → Riesgo BAJO  · 30-75% → Riesgo MEDIO  · > 75% → Riesgo ALTO
-   - Capacidad de Pago Mensual (CPM) = flujo_neto_promedio * 0.30
-   - Monto de crédito sugerido:
-     · Riesgo BAJO:  CPM × 5
-     · Riesgo MEDIO: CPM × 3
-     · Riesgo ALTO:  CPM × 1.5 (sujeto a comité)
+Detectamos una transacción inusual en tu cuenta:
 
-2. ANÁLISIS DE GASTOS DETALLADO:
-   - Clasifica los gastos del historial en categorías (nómina, servicios, comercio, transferencias, tarjetas)
-   - Identifica gastos hormiga y gastos recurrentes
-   - Calcula % del ingreso que va a cada categoría
-   - Sugiere oportunidades de ahorro concretas y alcanzables
+💰 *Monto:* $${Number(monto).toLocaleString('es-CO')} COP
+🏦 *Cuenta/Destino:* ${cuenta || 'No especificada'}
+📝 *Detalle:* ${detalle || 'Movimiento de alto valor'}
+🕐 *Fecha y hora:* ${ahora}
 
-3. ANÁLISIS SALARIAL Y CURVA DE MERCADO:
-   - Si el cliente informa su profesión y años de experiencia:
-     · Compara su ingreso observado en BigQuery vs rangos típicos en Colombia
-     · Indica cuartil: Q1 (< P25), Q2 (P25-P50), Q3 (P50-P75), Q4 (> P75)
-     · Basado en datos del DANE, encuestas salariales colombianas, portales de empleo
-     · Comenta perspectivas de crecimiento para su perfil
-   - Si el cliente no tiene datos en sesión, pide su ingreso declarado para comparar
+¿Fuiste tú quien realizó esta transacción?
 
-4. SIMULACIONES FINANCIERAS:
-   - Simulación de cuota de crédito con fórmula de amortización francesa:
-     Cuota = P × [r(1+r)^n] / [(1+r)^n - 1]  (r = tasa mensual, n = plazo meses)
-   - Proyección de ahorro a X meses con tasa CDT/ahorros
-   - Impacto de reducir deuda de tarjeta en el score crediticio
-   - Cuánto tiempo para pagar una deuda con X cuota mensual
+Responde *SÍ* si la reconoces.
+Responde *NO* si NO la autorizaste y bloquearemos tu cuenta de inmediato.`;
 
-5. RESPONDE CUALQUIER CONSULTA GENERAL del cliente relacionada con:
-   - Productos bancarios (cuentas, tarjetas, CDTs, seguros)
-   - Regulación financiera colombiana básica
-   - Consejos de educación financiera
+    if (sockGlobal) {
+        await sockGlobal.sendMessage(numeroWhatsApp, { text: mensajeAlerta });
 
-════════════════════════════════════
-FORMATO DE RESPUESTA (ESTRICTO)
-════════════════════════════════════
-Responde ÚNICAMENTE con un JSON válido. Sin markdown, sin texto adicional fuera del JSON:
-{
-  "clasificacion": "BIENVENIDA" | "SOLICITUD_CEDULA" | "ANALISIS_CREDITICIO" | "ANALISIS_GASTOS" | "ANALISIS_SALARIAL" | "SIMULACION" | "PQRS" | "OTRO",
-  "nombre_detectado": "nombre completo si aparece en datos BigQuery, sino null",
-  "respuesta_usuario": "Tu respuesta como asesor. Usa viñetas, tablas de texto y saltos de línea para claridad. Emojis con moderación."
-}`,
-                tools: [{
-                    retrieval: {
-                        vertexAiSearch: {
-                            datastore: `projects/${PROJECT_ID}/locations/${LOCATION}/collections/default_collection/dataStores/${DATA_STORE_ID}`
-                        }
-                    }
-                }]
-            }
-        });
-
-        const texto = response.text.replace(/```json/g, '').replace(/```/g, '').trim();
-        return JSON.parse(texto);
-    } catch (error) {
-        console.error("❌ Error en Vertex AI:", error.message);
-        throw error;
+        // También alertar al número registrado en BQ si es diferente
+        if (telefonoRegistrado && telefonoRegistrado !== numeroWhatsApp) {
+            await sockGlobal.sendMessage(telefonoRegistrado, { text: mensajeAlerta });
+            console.log(`📲 Alerta enviada al teléfono registrado: ${telefonoRegistrado}`);
+        }
     }
+
+    // Marcar alerta pendiente en sesión
+    const sesion = sesiones.get(numeroWhatsApp);
+    if (sesion) sesion.alertaFraude = { pendiente: true, monto, cuenta, detalle };
+}
+
+// ─────────────────────────────────────────────
+// AGENTE DINÁMICO CON FUNCTION CALLING
+// Gemini construye las queries según el contexto
+// ─────────────────────────────────────────────
+async function ejecutarAgenteFinanciero({ mensajeUsuario, sesion, pdfBase64 = null }) {
+
+    const systemPrompt = `Eres "QuindBot", el asesor bancario personal y experto en riesgo crediticio del Banco Quind.
+Eres analítico, empático y confiable como un gerente de banco experimentado.
+
+ESQUEMA DE BASE DE DATOS (BigQuery, proyecto: ${PROJECT_ID}):
+─────────────────────────────────────────────
+TABLA 1: \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\`
+  • nombres (STRING), apellidos (STRING), cedula (STRING), telefono (STRING)
+  • deuda_actual_tarjetas (FLOAT), cupo_total_tarjetas (FLOAT), saldo_promedio_cuentas (FLOAT)
+
+TABLA 2: \`${PROJECT_ID}.banco_quind.movimientos_cliente\`
+  • cedula (STRING), fecha (DATE/TIMESTAMP), detalle (STRING), movimiento (FLOAT)
+  • movimiento > 0 = INGRESO | movimiento < 0 = EGRESO
+─────────────────────────────────────────────
+CLIENTE EN SESIÓN: ${sesion.nombre || 'No identificado'} | Cédula: ${sesion.cedula || 'No registrada'}
+
+════════════════════════════════════
+REGLAS DE COMPORTAMIENTO
+════════════════════════════════════
+• Si el cliente NO está identificado: saluda y pregunta qué desea hacer. Opciones: análisis crediticio, movimientos, simulación crédito, posición salarial, PQR.
+• Si el cliente YA ESTÁ IDENTIFICADO: usa su nombre. NUNCA pidas la cédula de nuevo.
+• Para CUALQUIER análisis financiero: usa consultar_bigquery. NO respondas con datos inventados.
+• Construye las queries de forma DINÁMICA según lo que pide el usuario.
+• Si detectas fraude o transacción inusual: usa registrar_alerta_fraude.
+
+════════════════════════════════════
+CAPACIDADES
+════════════════════════════════════
+1. ANÁLISIS DE MOVIMIENTOS: por mes, por categoría, por rango de fechas, comparativos, tendencias
+2. PERFIL CREDITICIO: endeudamiento, CPM = flujo_neto * 0.30, monto crédito (BAJO: CPM×5, MEDIO: CPM×3, ALTO: CPM×1.5)
+3. ANÁLISIS SALARIAL: cuartiles Q1-Q4 en mercado colombiano según profesión y experiencia
+4. SIMULACIONES: cuota con amortización francesa [P×r(1+r)^n]/[(1+r)^n-1], proyección ahorro
+5. DETECCIÓN FRAUDE: transacciones no reconocidas o de alto valor inusual
+
+════════════════════════════════════
+FORMATO
+════════════════════════════════════
+Responde en texto natural directamente al cliente. Usa viñetas y tablas para claridad. Emojis con moderación.`;
+
+    const tools = [{
+        functionDeclarations: [
+            {
+                name: "consultar_bigquery",
+                description: "Ejecuta una query SQL en BigQuery para obtener datos financieros reales. Úsala SIEMPRE que necesites datos de movimientos, ingresos, egresos, historial, perfil o cualquier análisis. Construye la query dinámicamente según lo que pide el usuario.",
+                parameters: {
+                    type: "OBJECT",
+                    properties: {
+                        query_sql: {
+                            type: "STRING",
+                            description: `Query SQL estándar BigQuery. Usa nombres completos de tabla: \`${PROJECT_ID}.banco_quind.nombre_tabla\`. Filtra siempre por cedula = '${sesion.cedula || "CEDULA_DEL_CLIENTE"}' cuando aplique. Para meses usa FORMAT_DATE('%Y-%m', DATE(fecha)).`
+                        },
+                        descripcion: {
+                            type: "STRING",
+                            description: "Descripción corta de qué analiza esta query"
+                        }
+                    },
+                    required: ["query_sql", "descripcion"]
+                }
+            },
+            {
+                name: "registrar_alerta_fraude",
+                description: "Registra y envía una alerta de seguridad cuando el cliente menciona una transacción que no reconoce, una transferencia inusual de alto monto, o cualquier movimiento sospechoso.",
+                parameters: {
+                    type: "OBJECT",
+                    properties: {
+                        monto: {
+                            type: "NUMBER",
+                            description: "Monto de la transacción sospechosa en pesos colombianos"
+                        },
+                        cuenta_destino: {
+                            type: "STRING",
+                            description: "Cuenta, entidad o persona destino de la transacción"
+                        },
+                        detalle: {
+                            type: "STRING",
+                            description: "Descripción del movimiento sospechoso"
+                        }
+                    },
+                    required: ["monto"]
+                }
+            }
+        ]
+    }];
+
+    // Historial de mensajes para el ciclo agéntico
+    const partsInicio = [{ text: mensajeUsuario }];
+    if (pdfBase64) partsInicio.push({ inlineData: { mimeType: 'application/pdf', data: pdfBase64 } });
+
+    let mensajes = [{ role: 'user', parts: partsInicio }];
+    let respuestaFinal = null;
+    const MAX_ITER = 6;
+
+    for (let i = 0; i < MAX_ITER; i++) {
+        console.log(`\n🔄 Agente — iteración ${i + 1}/${MAX_ITER}`);
+
+        let response;
+        try {
+            response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: mensajes,
+                config: { systemInstruction: systemPrompt, tools }
+            });
+        } catch (err) {
+            console.error("❌ Error Gemini:", err.message);
+            throw err;
+        }
+
+        const parts        = response.candidates?.[0]?.content?.parts || [];
+        const funcionCalls = parts.filter(p => p.functionCall);
+        const textoParts   = parts.filter(p => p.text).map(p => p.text).join('');
+
+        if (funcionCalls.length === 0) {
+            respuestaFinal = textoParts || "He procesado tu solicitud. ¿Hay algo más en lo que pueda ayudarte?";
+            console.log("✅ Respuesta final obtenida.");
+            break;
+        }
+
+        // Agregar respuesta del modelo al historial
+        mensajes.push({ role: 'model', parts });
+
+        // Ejecutar cada función y recopilar resultados
+        const resultados = [];
+
+        for (const part of funcionCalls) {
+            const { name, args } = part.functionCall;
+            console.log(`🔧 Invocando: ${name}`, JSON.stringify(args).substring(0, 120));
+
+            let resultado = {};
+
+            if (name === 'consultar_bigquery') {
+                console.log(`📝 ${args.descripcion}`);
+                const bq = await ejecutarQueryBigQuery(args.query_sql);
+                resultado = bq.exito
+                    ? { exito: true, datos: bq.filas, total_filas: bq.filas.length }
+                    : { exito: false, error: bq.error };
+
+            } else if (name === 'registrar_alerta_fraude') {
+                // Guardar en sesión para que el handler envíe la alerta después de recibir la respuesta
+                const sesActual = sesiones.get(sesion.telefono);
+                if (sesActual) {
+                    sesActual.pendingFraudAlert = {
+                        monto: args.monto,
+                        cuenta: args.cuenta_destino || 'No especificada',
+                        detalle: args.detalle || 'Transacción sospechosa'
+                    };
+                }
+                resultado = {
+                    registrado: true,
+                    mensaje: "Alerta de fraude registrada. Se enviará notificación al cliente."
+                };
+            }
+
+            resultados.push({ functionResponse: { name, response: resultado } });
+        }
+
+        mensajes.push({ role: 'user', parts: resultados });
+    }
+
+    return respuestaFinal || "He procesado tu solicitud. ¿En qué más puedo ayudarte?";
 }
 
 // ─────────────────────────────────────────────
@@ -280,8 +339,8 @@ async function conectarWhatsApp() {
         browser: Browsers.ubuntu('Chrome'),
         syncFullHistory: false
     });
+    sockGlobal = sock;
 
-    // Pairing code si no hay sesión
     if (!sock.authState.creds.registered) {
         const numeroBot = "573003094183";
         setTimeout(async () => {
@@ -315,13 +374,13 @@ async function conectarWhatsApp() {
         if (type !== 'notify') return;
         const msg = messages[0];
 
-        console.log(`\n📨 Evento recibido | fromMe: ${msg.key.fromMe}`);
+        console.log(`\n📨 Evento | fromMe: ${msg.key.fromMe}`);
         if (!msg.message || msg.key.fromMe) return;
 
         const numeroUsuario = msg.key.remoteJid;
         const m             = msg.message;
 
-        // Extracción robusta de texto (cubre todos los tipos de mensajes de Baileys)
+        // Extracción robusta de texto (todos los tipos de Baileys)
         let textoUsuario =
             m.conversation ||
             m.extendedTextMessage?.text ||
@@ -340,95 +399,96 @@ async function conectarWhatsApp() {
             m.ephemeralMessage?.message?.documentMessage ||
             null;
 
-        // Procesamiento de PDF
         if (docMessage && docMessage.mimetype === 'application/pdf') {
-            console.log(`📥 PDF recibido de ${numeroUsuario.split('@')[0]}...`);
+            console.log(`📥 PDF recibido...`);
             try {
                 const stream = await downloadContentFromMessage(docMessage, 'document');
                 let buffer   = Buffer.from([]);
                 for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk]);
                 pdfBase64    = buffer.toString('base64');
                 textoUsuario = docMessage.caption || "Analiza este extracto bancario.";
-                console.log("✅ PDF procesado correctamente.");
+                console.log("✅ PDF procesado.");
             } catch (err) {
-                console.error("❌ Error procesando PDF:", err.message);
-                await sock.sendMessage(numeroUsuario, { text: "Lo siento, no pude procesar el PDF. ¿Puedes enviarlo nuevamente?" });
+                console.error("❌ Error PDF:", err.message);
+                await sock.sendMessage(numeroUsuario, { text: "No pude procesar el PDF. ¿Puedes enviarlo de nuevo?" });
                 return;
             }
         }
 
-        // Si no hay contenido procesable, logueamos la estructura para diagnóstico
         if (!textoUsuario && !pdfBase64) {
-            console.log("⚠️ Sin contenido procesable. Estructura recibida:");
+            console.log("⚠️ Sin contenido procesable.");
             console.log(JSON.stringify(m, null, 2));
             return;
         }
 
         console.log(`👤 [${numeroUsuario.split('@')[0]}]: "${textoUsuario}"`);
 
-        // ── Recuperar sesión del usuario ──
+        // ── Sesión del usuario ──
         const sesion = obtenerSesion(numeroUsuario);
 
-        // ── Detectar si el mensaje contiene una cédula (7-11 dígitos) ──
-        const matchCedula = textoUsuario?.match(/\b\d{7,11}\b/);
-        let datosBQ       = null;
+        // ── Manejo de respuesta a alerta de fraude pendiente ──
+        if (sesion.alertaFraude?.pendiente) {
+            const esNo = /^no\b|no fui|no la reconoc|no la autoriz|no autoriz/i.test(textoUsuario);
+            const esSi = /^s[íi]\b|sí fui|si fui|la reconoc|la autoricé|si la hice/i.test(textoUsuario);
 
+            if (esNo) {
+                sesion.alertaFraude.pendiente = false;
+                await sock.sendMessage(numeroUsuario, {
+                    text: `🔒 *Cuenta bloqueada preventivamente.*\n\nTu caso ha sido escalado al equipo de seguridad. Un asesor se comunicará contigo al número registrado.\n\n📞 Línea de fraudes: *018000-QUIND*\n\n¿Necesitas algo más?`
+                });
+                return;
+            }
+            if (esSi) {
+                sesion.alertaFraude.pendiente = false;
+                await sock.sendMessage(numeroUsuario, {
+                    text: `✅ Transacción confirmada y validada como autorizada. Queda registrada en tu historial.\n\n¿Hay algo más en lo que pueda ayudarte?`
+                });
+                return;
+            }
+        }
+
+        // ── Detectar e identificar cédula si no hay sesión ──
+        const matchCedula = textoUsuario?.match(/\b\d{7,11}\b/);
         if (matchCedula && !sesion.cedula) {
-            // Primera identificación: consultar BigQuery y guardar en sesión
             const cedulaDetectada = matchCedula[0];
             await sock.sendMessage(numeroUsuario, {
                 text: `🔍 Consultando tu información para la cédula *${cedulaDetectada}*...`
             });
-
-            const resultado = await consultarDatosCliente(cedulaDetectada);
-
-            if (resultado.estado === 'OK') {
-                const nombreCompleto = `${resultado.datos.nombres} ${resultado.datos.apellidos}`;
-                guardarCedulaEnSesion(numeroUsuario, cedulaDetectada, nombreCompleto);
-                datosBQ = resultado.datos;
-            } else if (resultado.estado === 'NO_ENCONTRADO') {
-                await sock.sendMessage(numeroUsuario, {
-                    text: `⚠️ La cédula *${cedulaDetectada}* no está registrada en nuestra base de datos. Verifica el número e inténtalo de nuevo.`
+            const cliente = await obtenerClientePorCedula(cedulaDetectada);
+            if (cliente) {
+                guardarSesion(numeroUsuario, {
+                    cedula: cedulaDetectada,
+                    nombre: `${cliente.nombres} ${cliente.apellidos}`
                 });
-                return;
             } else {
                 await sock.sendMessage(numeroUsuario, {
-                    text: `⚠️ Error consultando tu información. Intenta de nuevo en un momento.`
+                    text: `⚠️ La cédula *${cedulaDetectada}* no está registrada. Verifica el número e inténtalo de nuevo.`
                 });
                 return;
             }
-
-        } else if (sesion.cedula) {
-            // Sesión activa: usar cédula guardada sin pedirla de nuevo
-            console.log(`🔄 Sesión activa: usando cédula ${sesion.cedula} (${sesion.nombre})`);
-            const resultado = await consultarDatosCliente(sesion.cedula);
-            if (resultado.estado === 'OK') {
-                datosBQ = resultado.datos;
-            }
         }
-        // Si no hay cédula ni en mensaje ni en sesión, datosBQ = null
-        // y la IA sabrá preguntar qué desea hacer el cliente
 
-        // ── Llamar a Vertex AI ──
+        const sesionActual = obtenerSesion(numeroUsuario);
+
+        // ── Ejecutar agente dinámico ──
         try {
-            const respuestaIA = await consultarVertex({
+            const respuesta = await ejecutarAgenteFinanciero({
                 mensajeUsuario: textoUsuario,
-                datosBQ,
-                sesion,
+                sesion: sesionActual,
                 pdfBase64
             });
 
-            console.log(`🤖 Clasificación: ${respuestaIA.clasificacion}`);
-
-            // Actualizar nombre en sesión si la IA lo detectó por primera vez
-            if (respuestaIA.nombre_detectado && sesion.cedula && !sesion.nombre) {
-                guardarCedulaEnSesion(numeroUsuario, sesion.cedula, respuestaIA.nombre_detectado);
+            // Procesar alerta de fraude si el agente la registró durante su ciclo
+            if (sesionActual.pendingFraudAlert) {
+                const { monto, cuenta, detalle } = sesionActual.pendingFraudAlert;
+                sesionActual.pendingFraudAlert    = null;
+                await enviarAlertaFraude({ cedula: sesionActual.cedula, monto, cuenta, detalle, numeroWhatsApp: numeroUsuario });
             }
 
-            await sock.sendMessage(numeroUsuario, { text: respuestaIA.respuesta_usuario });
+            await sock.sendMessage(numeroUsuario, { text: respuesta });
 
         } catch (error) {
-            console.error("❌ Error procesando mensaje:", error.message);
+            console.error("❌ Error en agente:", error.message);
             await sock.sendMessage(numeroUsuario, {
                 text: "⚠️ Estoy teniendo dificultades técnicas. Por favor intenta de nuevo en un momento."
             });
@@ -436,6 +496,8 @@ async function conectarWhatsApp() {
     });
 }
 
-// INICIO DEL PROGRAMA
+// ─────────────────────────────────────────────
+// INICIO
+// ─────────────────────────────────────────────
 console.log("▶️ Iniciando QuindBot...");
 conectarWhatsApp().catch(err => console.error("💥 ERROR CRÍTICO:", err));
