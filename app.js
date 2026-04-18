@@ -1,4 +1,4 @@
-console.log("🚀 [1/6] Iniciando script app.js...");
+console.log("🚀 [1/6] Iniciando script app.js con Motor Transaccional...");
 
 const path = require('path');
 const express = require('express');
@@ -6,10 +6,10 @@ const express = require('express');
 // --- CONFIGURACIÓN DE SERVIDOR WEB PARA CLOUD RUN ---
 const app = express();
 const port = process.env.PORT || 8080;
-app.get('/', (req, res) => res.send('🤖 QuindBot está activo y escuchando en la nube!'));
+app.get('/', (req, res) => res.send('🤖 QuindBot Pro (Transaccional) está activo!'));
 app.listen(port, '0.0.0.0', () => console.log(`🌐 Servidor Express escuchando en 0.0.0.0:${port}`));
 
-console.log("🔑 [2/6] Variables de entorno listas.");
+console.log("🔑 [2/6] Variables de entorno y Servidor listos.");
 
 const { 
     default: makeWASocket, 
@@ -40,23 +40,54 @@ try {
     console.error("❌ Error crítico inicializando SDKs:", error);
 }
 
-// ⚠️ AHORA BUSCAMOS POR CÉDULA, NO POR CELULAR
+/**
+ * CONSULTA TRANSACCIONAL: Une el Perfil Maestro con el historial de Movimientos
+ */
 async function consultarDatosCliente(cedula) {
-    // Si tu columna se llama diferente en BigQuery, cámbialo aquí abajo donde dice "cedula ="
-    const query = `SELECT * FROM \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\` WHERE cedula = '${cedula}' LIMIT 1`;
+    const query = `
+        WITH resumen_movimientos AS (
+            SELECT 
+                cedula,
+                SUM(CASE WHEN movimiento > 0 THEN movimiento ELSE 0 END) as ingresos_totales,
+                SUM(CASE WHEN movimiento < 0 THEN ABS(movimiento) ELSE 0 END) as egresos_totales,
+                COUNT(*) as total_transacciones,
+                STRING_AGG(CONCAT(fecha, ': ', detalle, ' ($', movimiento, ')'), ' | ' ORDER BY fecha DESC LIMIT 15) as historial_reciente
+            FROM \`${PROJECT_ID}.banco_quind.movimientos_cliente\`
+            WHERE cedula = '${cedula}'
+            GROUP BY cedula
+        )
+        SELECT 
+            c.nombres, c.apellidos, c.cedula,
+            COALESCE(m.ingresos_totales, 0) as ingresos_totales,
+            COALESCE(m.egresos_totales, 0) as egresos_totales,
+            (COALESCE(m.ingresos_totales, 0) - COALESCE(m.egresos_totales, 0)) as flujo_neto_mensual,
+            c.deuda_actual_tarjetas, c.cupo_total_tarjetas, c.saldo_promedio_cuentas,
+            COALESCE(m.historial_reciente, 'Sin movimientos registrados') as historial_reciente
+        FROM \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\` c
+        LEFT JOIN resumen_movimientos m ON c.cedula = m.cedula
+        WHERE c.cedula = '${cedula}'
+        LIMIT 1
+    `;
+
     try {
         const [rows] = await bigquery.query(query);
-        if (rows.length > 0) return JSON.stringify(rows[0]); 
+        if (rows.length > 0) {
+            console.log(`📊 Datos maestros y transaccionales recuperados para: ${rows[0].nombres}`);
+            return JSON.stringify(rows[0]);
+        }
         return "CLIENTE_NO_ENCONTRADO";
     } catch (error) {
-        console.error("Error SQL:", error);
+        console.error("❌ Error en consulta SQL relacional:", error);
         return "ERROR_BD";
     }
 }
 
+/**
+ * INTERACCIÓN CON VERTEX AI: Análisis de Riesgo y Asesoría Financiera
+ */
 async function consultarVertex(mensajeUsuario, pdfBase64 = null, datosBigQuery = "") {
     try {
-        let promptEnriquecido = `Solicitud del cliente: ${mensajeUsuario}\n\nDatos de BigQuery: ${datosBigQuery}`;
+        let promptEnriquecido = `Solicitud del cliente: ${mensajeUsuario}\n\nDatos Financieros Reales (BigQuery): ${datosBigQuery}`;
         const parts = [{ text: promptEnriquecido }];
         
         if (pdfBase64) {
@@ -67,29 +98,22 @@ async function consultarVertex(mensajeUsuario, pdfBase64 = null, datosBigQuery =
             model: 'gemini-2.5-flash',
             contents: [{ role: 'user', parts: parts }],
             config: {
-                systemInstruction: `Eres el Motor de Decisión de Riesgo del Banco Quind. Tu comunicación es SINTÉTICA, DIRECTA y TÉCNICA. Usa viñetas.
+                systemInstruction: `Eres el Motor de Decisión de Riesgo y Asesor Financiero del Banco Quind. Tu comunicación es PROFESIONAL, SINTÉTICA y TÉCNICA.
 
-REGLA CERO (IDENTIFICACIÓN OBLIGATORIA):
-- Si en los "Datos de BigQuery" recibes el texto "NO_CEDULA", significa que el cliente aún no nos ha dado su documento. Tu ÚNICA respuesta debe ser un saludo cordial pidiéndole que por favor te indique su número de cédula para buscarlo en el sistema. NO calcules nada ni intentes dar tasas.
-- Si recibes "CLIENTE_NO_ENCONTRADO", dile formalmente que esa cédula no tiene historial en nuestra base de datos.
+ESTRATEGIA DE RESPUESTA:
+1. SI datosBigQuery == "NO_CEDULA": Pide amablemente la cédula para iniciar.
+2. SI datosBigQuery == "CLIENTE_NO_ENCONTRADO": Informa que el documento no existe en la base maestra.
+3. SI HAY DATOS:
+   - Saluda por el Nombre del cliente.
+   - Analiza la lista de 'historial_reciente' para detectar patrones (gastos hormiga, nómina, deudas).
+   - Calcula la Capacidad de Pago Mensual (CPM) basada en el flujo_neto_mensual.
+   - Evalúa Riesgo: Cupo tarjetas vs deuda. (Riesgo Alto si deuda > 75% cupo).
+   - Decide crédito: Riesgo Bajo/Medio = CPM * 5 | Riesgo Alto = CPM * 2.
 
-POLÍTICAS DE CRÉDITO Y CÁLCULOS ESTRICTOS (Solo aplicar si hay datos financieros):
-1. Capacidad de Pago Mensual (CPM): Calcula ingresos mensuales (ingresos_12_meses / 12) menos gastos mensuales (egresos_12_meses / 12).
-2. Perfil de Riesgo y Mora: Si 'deuda_actual_tarjetas' supera el 75% del 'cupo_total_tarjetas', el cliente es de ALTO RIESGO.
-3. Cupo Límite de Crédito:
-   - Riesgo Bajo/Medio: CPM * 5.
-   - Riesgo Alto: CPM * 2.
-   - Si CPM es negativo: CRÉDITO DENEGADO.
-4. Tasas de Interés:
-   - Saldo promedio > 5,000,000 y Riesgo Bajo: Tasa Fija 1.2% M.V. / Tasa Compuesta 15.3% E.A.
-   - Estándar: Tasa Fija 2.2% M.V. / Tasa Compuesta 29.8% E.A.
-   - Riesgo Alto: Tasa Fija 2.9% M.V. / Tasa Compuesta 40.9% E.A.
-
-REGLA DE FORMATO (ESTRICTA):
-Tu respuesta DEBE ser ÚNICAMENTE un objeto JSON.
+ESTRUCTURA JSON OBLIGATORIA:
 {
-  "clasificacion": "CONSULTA_CEDULA" | "FRAUDE" | "SOLICITUD_CREDITO" | "OTRO",
-  "respuesta_usuario": "Texto sintetizado según las reglas..."
+  "clasificacion": "ANALISIS_GASTOS" | "SOLICITUD_CREDITO" | "PQRS" | "IDENTIFICACION",
+  "respuesta_usuario": "Texto con viñetas incluyendo: Resumen de Ingresos/Egresos, Análisis de historial reciente, Nivel de Riesgo y Decisión de Crédito final."
 }`,
                 tools: [{ retrieval: { vertexAiSearch: { datastore: `projects/${PROJECT_ID}/locations/${LOCATION}/collections/default_collection/dataStores/${DATA_STORE_ID}` } } }]
             }
@@ -97,24 +121,27 @@ Tu respuesta DEBE ser ÚNICAMENTE un objeto JSON.
         
         return JSON.parse(response.text.replace(/```json/g, '').replace(/```/g, '').trim());
     } catch (error) {
+        console.error("❌ Error en Vertex AI:", error);
         throw error;
     }
 }
 
 // 4. CONEXIÓN WHATSAPP
 async function conectarWhatsApp() {
+    console.log("🔄 [5/6] Preparando la conexión a WhatsApp...");
     const { state, saveCreds } = await useMultiFileAuthState('sesion_wa_limpia');
     const { version } = await fetchLatestBaileysVersion();
 
     const sock = makeWASocket({
         version,
         auth: state,
-        printQRInTerminal: false,
+        printQRInTerminal: false, // Forzamos el uso de Pairing Code
         logger: pino({ level: 'silent' }), 
         browser: Browsers.ubuntu('Chrome'),
         syncFullHistory: false
     });
 
+    // GENERAR CÓDIGO DE VINCULACIÓN SI NO HAY SESIÓN
     if (!sock.authState.creds.registered) {
         const numeroBot = "573003094183"; 
         setTimeout(async () => {
@@ -124,7 +151,9 @@ async function conectarWhatsApp() {
                 console.log(`\n======================================================`);
                 console.log(`📲 TU CÓDIGO DE VINCULACIÓN ES: ${code}`);
                 console.log(`======================================================\n`);
-            } catch (err) {}
+            } catch (err) {
+                console.error("Error pidiendo Pairing Code:", err);
+            }
         }, 3000); 
     }
 
@@ -147,57 +176,42 @@ async function conectarWhatsApp() {
         const numeroUsuario = msg.key.remoteJid;
         const m = msg.message;
         
-        let textoUsuario = m.conversation || m.extendedTextMessage?.text;
+        let textoUsuario = m.conversation || m.extendedTextMessage?.text || "";
         let pdfBase64 = null;
-        let docMessage = m.documentMessage;
+        let docMessage = m.documentMessage || m.documentWithCaptionMessage?.message?.documentMessage;
 
-        if (m.documentWithCaptionMessage) {
-            docMessage = m.documentWithCaptionMessage.message.documentMessage;
-        }
-
-        if (docMessage) {
-            textoUsuario = docMessage.caption || "Analiza este documento.";
-            if (docMessage.mimetype === 'application/pdf') {
-                try {
-                    const stream = await downloadContentFromMessage(docMessage, 'document');
-                    let buffer = Buffer.from([]);
-                    for await(const chunk of stream) buffer = Buffer.concat([buffer, chunk]);
-                    pdfBase64 = buffer.toString('base64');
-                    if (buffer.length === 0) throw new Error("PDF vacío.");
-                } catch (err) {
-                    await sock.sendMessage(numeroUsuario, { text: "⚠️ Error técnico al leer el PDF." });
-                    return;
-                }
+        // MANEJO DE PDF
+        if (docMessage && docMessage.mimetype === 'application/pdf') {
+            console.log(`📥 Procesando PDF de ${numeroUsuario}...`);
+            try {
+                const stream = await downloadContentFromMessage(docMessage, 'document');
+                let buffer = Buffer.from([]);
+                for await(const chunk of stream) buffer = Buffer.concat([buffer, chunk]);
+                pdfBase64 = buffer.toString('base64');
+                textoUsuario = docMessage.caption || "Analiza este extracto.";
+            } catch (err) {
+                console.error("Error descargando PDF:", err);
             }
         }
 
         if (textoUsuario || pdfBase64) {
-            
-            // 🧠 EXTRACCIÓN INTELIGENTE DE CÉDULA CON REGEX
-            // Busca cualquier número entre 7 y 11 dígitos dentro de lo que escribió el usuario
+            // 🧠 EXTRACCIÓN DE CÉDULA CON REGEX (7 a 11 dígitos)
             const matchCedula = textoUsuario.match(/\b\d{7,11}\b/);
             let datosBigQuery = "";
 
             if (matchCedula) {
                 const cedulaDetectada = matchCedula[0];
-                await sock.sendMessage(numeroUsuario, { text: `⏳ Buscando la cédula ${cedulaDetectada} y evaluando perfil...` });
+                await sock.sendMessage(numeroUsuario, { text: `🔍 Consultando historial para la cédula ${cedulaDetectada}...` });
                 datosBigQuery = await consultarDatosCliente(cedulaDetectada);
             } else {
-                // Si el usuario dijo "hola" y no mandó números, le decimos a Gemini que no hay cédula
                 datosBigQuery = "NO_CEDULA";
             }
 
             try {
-                // Si solo dijo "hola", no mandamos la alerta de "Evaluando perfil...", solo le respondemos.
-                if (datosBigQuery === "NO_CEDULA") {
-                    // Feedback visual en la terminal
-                    console.log(`📩 Solicitando cédula a ${numeroUsuario.split('@')[0]}`);
-                }
-
                 const respuestaIA = await consultarVertex(textoUsuario, pdfBase64, datosBigQuery);
                 await sock.sendMessage(numeroUsuario, { text: respuestaIA.respuesta_usuario });
             } catch (error) {
-                await sock.sendMessage(numeroUsuario, { text: "⚠️ Fallo en el motor de riesgo. Contacte a soporte." });
+                await sock.sendMessage(numeroUsuario, { text: "⚠️ Error en el motor de decisión. Intente más tarde." });
             }
         }
     });
