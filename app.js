@@ -22,8 +22,6 @@ const { GoogleGenAI } = require('@google/genai');
 const { BigQuery } = require('@google-cloud/bigquery');
 const pino = require('pino');
 
-// ⚠️ Se eliminó por completo qrcode-terminal para forzar el código de 8 dígitos
-
 console.log("📦 [3/6] Librerías importadas correctamente.");
 
 // 2. CONFIGURACIÓN GCP
@@ -42,15 +40,17 @@ try {
     console.error("❌ Error crítico inicializando SDKs:", error);
 }
 
-async function consultarDatosCliente(celularUsuario) {
-    const numeroLimpio = celularUsuario.split('@')[0];
-    const query = `SELECT * FROM \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\` WHERE celular = '${numeroLimpio}' LIMIT 1`;
+// ⚠️ AHORA BUSCAMOS POR CÉDULA, NO POR CELULAR
+async function consultarDatosCliente(cedula) {
+    // Si tu columna se llama diferente en BigQuery, cámbialo aquí abajo donde dice "cedula ="
+    const query = `SELECT * FROM \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\` WHERE cedula = '${cedula}' LIMIT 1`;
     try {
         const [rows] = await bigquery.query(query);
         if (rows.length > 0) return JSON.stringify(rows[0]); 
-        return "Cliente no encontrado en BD.";
+        return "CLIENTE_NO_ENCONTRADO";
     } catch (error) {
-        return "Error al consultar BD.";
+        console.error("Error SQL:", error);
+        return "ERROR_BD";
     }
 }
 
@@ -67,11 +67,15 @@ async function consultarVertex(mensajeUsuario, pdfBase64 = null, datosBigQuery =
             model: 'gemini-2.5-flash',
             contents: [{ role: 'user', parts: parts }],
             config: {
-                systemInstruction: `Eres el Motor de Decisión de Riesgo del Banco Quind. Tu comunicación es SINTÉTICA, DIRECTA y TÉCNICA. NADA de saludos extensos ni textos de relleno. Ve directamente a los datos. Usa viñetas.
+                systemInstruction: `Eres el Motor de Decisión de Riesgo del Banco Quind. Tu comunicación es SINTÉTICA, DIRECTA y TÉCNICA. Usa viñetas.
 
-POLÍTICAS DE CRÉDITO Y CÁLCULOS ESTRICTOS:
-1. Capacidad de Pago Mensual (CPM): Calcula los ingresos mensuales (ingresos_12_meses / 12) y réstale los gastos mensuales (egresos_12_meses / 12).
-2. Perfil de Riesgo y Mora: Evalúa 'deuda_actual_tarjetas' vs 'cupo_total_tarjetas'. Si la deuda supera el 75% del cupo, el cliente se considera de ALTO RIESGO.
+REGLA CERO (IDENTIFICACIÓN OBLIGATORIA):
+- Si en los "Datos de BigQuery" recibes el texto "NO_CEDULA", significa que el cliente aún no nos ha dado su documento. Tu ÚNICA respuesta debe ser un saludo cordial pidiéndole que por favor te indique su número de cédula para buscarlo en el sistema. NO calcules nada ni intentes dar tasas.
+- Si recibes "CLIENTE_NO_ENCONTRADO", dile formalmente que esa cédula no tiene historial en nuestra base de datos.
+
+POLÍTICAS DE CRÉDITO Y CÁLCULOS ESTRICTOS (Solo aplicar si hay datos financieros):
+1. Capacidad de Pago Mensual (CPM): Calcula ingresos mensuales (ingresos_12_meses / 12) menos gastos mensuales (egresos_12_meses / 12).
+2. Perfil de Riesgo y Mora: Si 'deuda_actual_tarjetas' supera el 75% del 'cupo_total_tarjetas', el cliente es de ALTO RIESGO.
 3. Cupo Límite de Crédito:
    - Riesgo Bajo/Medio: CPM * 5.
    - Riesgo Alto: CPM * 2.
@@ -81,18 +85,11 @@ POLÍTICAS DE CRÉDITO Y CÁLCULOS ESTRICTOS:
    - Estándar: Tasa Fija 2.2% M.V. / Tasa Compuesta 29.8% E.A.
    - Riesgo Alto: Tasa Fija 2.9% M.V. / Tasa Compuesta 40.9% E.A.
 
-ESTRUCTURA DE TU RESPUESTA (Obligatoria):
-- Saludo de 1 línea.
-- Viñetas con: Ingresos Mensuales Estimados, Gastos Mensuales, CPM.
-- Nivel de Riesgo Determinado (Bajo, Medio, Alto).
-- Decisión: Aprobado/Denegado con el Cupo Límite exacto en COP.
-- Tasa Fija (M.V.) y Tasa Compuesta (E.A.) aplicables.
-
 REGLA DE FORMATO (ESTRICTA):
 Tu respuesta DEBE ser ÚNICAMENTE un objeto JSON.
 {
-  "clasificacion": "FRAUDE" | "CONSULTA_PRODUCTO" | "SOLICITUD_CREDITO" | "PQR" | "OTRO",
-  "respuesta_usuario": "Texto sintetizado..."
+  "clasificacion": "CONSULTA_CEDULA" | "FRAUDE" | "SOLICITUD_CREDITO" | "OTRO",
+  "respuesta_usuario": "Texto sintetizado según las reglas..."
 }`,
                 tools: [{ retrieval: { vertexAiSearch: { datastore: `projects/${PROJECT_ID}/locations/${LOCATION}/collections/default_collection/dataStores/${DATA_STORE_ID}` } } }]
             }
@@ -106,35 +103,28 @@ Tu respuesta DEBE ser ÚNICAMENTE un objeto JSON.
 
 // 4. CONEXIÓN WHATSAPP
 async function conectarWhatsApp() {
-    console.log("🔄 [5/6] Preparando la conexión a WhatsApp...");
     const { state, saveCreds } = await useMultiFileAuthState('sesion_wa_limpia');
     const { version } = await fetchLatestBaileysVersion();
 
     const sock = makeWASocket({
         version,
         auth: state,
-        printQRInTerminal: false, // 🚫 Bloqueamos la generación de QRs
+        printQRInTerminal: false,
         logger: pino({ level: 'silent' }), 
         browser: Browsers.ubuntu('Chrome'),
         syncFullHistory: false
     });
 
-    // 🚀 LÓGICA DE VINCULACIÓN CON CÓDIGO (PAIRING CODE)
     if (!sock.authState.creds.registered) {
         const numeroBot = "573003094183"; 
-        console.log(`\n⏳ Solicitando código de vinculación a WhatsApp para el número ${numeroBot}...`);
-        
         setTimeout(async () => {
             try {
                 let code = await sock.requestPairingCode(numeroBot);
-                // Le damos formato (ej. ABCD-1234) para que sea fácil de leer
                 code = code?.match(/.{1,4}/g)?.join("-") || code;
                 console.log(`\n======================================================`);
                 console.log(`📲 TU CÓDIGO DE VINCULACIÓN ES: ${code}`);
-                console.log(`=====================================================\n`);
-            } catch (err) {
-                console.log("⚠️ Error pidiendo código de vinculación:", err);
-            }
+                console.log(`======================================================\n`);
+            } catch (err) {}
         }, 3000); 
     }
 
@@ -142,7 +132,6 @@ async function conectarWhatsApp() {
 
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
-        // Limpiamos la recepción del QR de esta función
         if (connection === 'close') {
             const reason = lastDisconnect?.error?.output?.statusCode;
             if (reason !== 401) conectarWhatsApp();
@@ -167,7 +156,7 @@ async function conectarWhatsApp() {
         }
 
         if (docMessage) {
-            textoUsuario = docMessage.caption || "Analiza mi perfil para solicitud de crédito con este documento.";
+            textoUsuario = docMessage.caption || "Analiza este documento.";
             if (docMessage.mimetype === 'application/pdf') {
                 try {
                     const stream = await downloadContentFromMessage(docMessage, 'document');
@@ -176,23 +165,39 @@ async function conectarWhatsApp() {
                     pdfBase64 = buffer.toString('base64');
                     if (buffer.length === 0) throw new Error("PDF vacío.");
                 } catch (err) {
-                    await sock.sendMessage(numeroUsuario, { text: "⚠️ Error técnico: El PDF está dañado o protegido por contraseña." });
+                    await sock.sendMessage(numeroUsuario, { text: "⚠️ Error técnico al leer el PDF." });
                     return;
                 }
-            } else {
-                await sock.sendMessage(numeroUsuario, { text: "⚠️ Formato no soportado. Por favor envía un archivo PDF." });
-                return;
             }
         }
 
         if (textoUsuario || pdfBase64) {
-            await sock.sendMessage(numeroUsuario, { text: "⏳ Evaluando perfil de riesgo..." });
+            
+            // 🧠 EXTRACCIÓN INTELIGENTE DE CÉDULA CON REGEX
+            // Busca cualquier número entre 7 y 11 dígitos dentro de lo que escribió el usuario
+            const matchCedula = textoUsuario.match(/\b\d{7,11}\b/);
+            let datosBigQuery = "";
+
+            if (matchCedula) {
+                const cedulaDetectada = matchCedula[0];
+                await sock.sendMessage(numeroUsuario, { text: `⏳ Buscando la cédula ${cedulaDetectada} y evaluando perfil...` });
+                datosBigQuery = await consultarDatosCliente(cedulaDetectada);
+            } else {
+                // Si el usuario dijo "hola" y no mandó números, le decimos a Gemini que no hay cédula
+                datosBigQuery = "NO_CEDULA";
+            }
+
             try {
-                const datosBigQuery = await consultarDatosCliente(numeroUsuario);
+                // Si solo dijo "hola", no mandamos la alerta de "Evaluando perfil...", solo le respondemos.
+                if (datosBigQuery === "NO_CEDULA") {
+                    // Feedback visual en la terminal
+                    console.log(`📩 Solicitando cédula a ${numeroUsuario.split('@')[0]}`);
+                }
+
                 const respuestaIA = await consultarVertex(textoUsuario, pdfBase64, datosBigQuery);
                 await sock.sendMessage(numeroUsuario, { text: respuestaIA.respuesta_usuario });
             } catch (error) {
-                await sock.sendMessage(numeroUsuario, { text: "⚠️ Fallo en el motor de riesgo. Contacte a soporte: 01-8000-QUIND." });
+                await sock.sendMessage(numeroUsuario, { text: "⚠️ Fallo en el motor de riesgo. Contacte a soporte." });
             }
         }
     });
