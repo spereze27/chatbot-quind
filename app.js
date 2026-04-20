@@ -8,7 +8,7 @@ const express = require('express');
 const app  = express();
 const port = process.env.PORT || 8080;
 
-app.use(express.json()); // Necesario para recibir JSON en /alerta-fraude
+app.use(express.json());
 
 app.get('/', (req, res) => res.send('🤖 QuindBot Pro está activo!'));
 
@@ -28,7 +28,6 @@ app.post('/alerta-fraude', async (req, res) => {
     const numeroWA = `57${String(celular).replace(/\D/g, '')}@s.whatsapp.net`;
     const ahora    = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
 
-    // Saludo personalizado si tenemos el nombre, genérico si no
     const saludoLinea = nombre
         ? `Hola *${nombre.split(' ')[0]}*, detectamos una transferencia inusual desde tu cuenta:`
         : `Detectamos una transferencia inusual desde tu cuenta:`;
@@ -53,33 +52,43 @@ Responde *NO* si NO la autorizaste 🔒
     try {
         await sockGlobal.sendMessage(numeroWA, { text: mensajeAlerta });
 
-        // Preservar sesión existente si ya existe; si no, crearla con cedula y nombre del portal
+        const alertaData = {
+            pendiente:      true,
+            monto,
+            cuenta:         cuentaDestino || 'No especificada',
+            detalle:        motivo || 'Transferencia inusual',
+            idTransferencia,
+            cedula,
+            nombre:         nombre || null,
+            numeroWA,
+            timestamp:      Date.now()
+        };
+
+        // ── ÍNDICE POR CÉDULA (fuente de verdad principal) ──
+        // El JID real de WhatsApp puede diferir del construido con el celular del portal.
+        // Guardamos la alerta indexada por cédula para encontrarla sin importar el JID.
+        if (cedula) {
+            alertasPorCedula.set(String(cedula), alertaData);
+            console.log(`📌 Alerta indexada por cédula: ${cedula}`);
+        }
+
+        // También guardar en sesión por JID construido (útil si el JID coincide exactamente)
         const sesionExistente = sesiones.get(numeroWA);
         const sesion = sesionExistente || {
-            cedula:            null,
-            nombre:            null,
+            cedula:            cedula || null,
+            nombre:            nombre || null,
             celular:           numeroWA,
             ultimaActividad:   Date.now(),
             alertaFraude:      null,
             pendingFraudAlert: null
         };
-
-        // Inyectar cedula y nombre si el portal los proveyó y la sesión aún no los tiene
-        if (cedula  && !sesion.cedula)  sesion.cedula  = cedula;
-        if (nombre  && !sesion.nombre)  sesion.nombre  = nombre;
-
-        sesion.alertaFraude = {
-            pendiente:      true,
-            monto,
-            cuenta:         cuentaDestino || 'No especificada',
-            detalle:        motivo || 'Transferencia inusual',
-            idTransferencia
-        };
+        if (cedula && !sesion.cedula)  sesion.cedula  = cedula;
+        if (nombre && !sesion.nombre)  sesion.nombre  = nombre;
+        sesion.alertaFraude    = alertaData;
         sesion.ultimaActividad = Date.now();
         sesiones.set(numeroWA, sesion);
 
-        console.log(`📲 Alerta registrada en sesión ${numeroWA} | cédula: ${sesion.cedula} | nombre: ${sesion.nombre}`);
-        console.log(`📱 JID construido del celular: ${numeroWA} (celular BQ: ${celular})`);
+        console.log(`📲 Alerta registrada | JID construido: ${numeroWA} | cédula: ${cedula} | nombre: ${nombre}`);
         res.json({ ok: true, numeroWA });
     } catch (err) {
         console.error('❌ Error enviando alerta WA:', err.message);
@@ -127,12 +136,17 @@ try {
 const sesiones = new Map();
 const TTL_MS   = 60 * 60 * 1000;
 
+// ─────────────────────────────────────────────
+// ÍNDICE DE ALERTAS DE FRAUDE POR CÉDULA
+// Clave: cedula (string) → valor: objeto alertaFraude
+// Permite encontrar la alerta sin importar el JID de WhatsApp del remitente.
+// ─────────────────────────────────────────────
+const alertasPorCedula = new Map();
+
 function obtenerSesion(numero) {
     const ahora  = Date.now();
     const sesion = sesiones.get(numero);
     if (sesion) {
-        // NUNCA resetear una sesión con alerta de fraude pendiente,
-        // aunque haya expirado el TTL normal
         if (sesion.alertaFraude?.pendiente) {
             sesion.ultimaActividad = ahora;
             return sesion;
@@ -162,13 +176,19 @@ function guardarSesion(numero, datos) {
     console.log(`💾 Sesión | ${numero.split('@')[0]} → cédula: ${sesion.cedula} | nombre: ${sesion.nombre}`);
 }
 
-// Limpieza periódica cada 30 minutos — respeta sesiones con alerta pendiente
+// Limpieza periódica cada 30 minutos
 setInterval(() => {
     const ahora = Date.now();
     let n = 0;
     for (const [k, v] of sesiones.entries()) {
-        if (v.alertaFraude?.pendiente) continue; // nunca limpiar alertas pendientes
+        if (v.alertaFraude?.pendiente) continue;
         if ((ahora - v.ultimaActividad) >= TTL_MS) { sesiones.delete(k); n++; }
+    }
+    // Limpiar alertasPorCedula vencidas (> 2 horas sin resolver)
+    for (const [ced, a] of alertasPorCedula.entries()) {
+        if (!a.pendiente || (ahora - a.timestamp) > 2 * TTL_MS) {
+            alertasPorCedula.delete(ced);
+        }
     }
     if (n > 0) console.log(`🧹 ${n} sesión(es) expirada(s) eliminada(s).`);
 }, 30 * 60 * 1000);
@@ -206,7 +226,7 @@ async function obtenerClientePorCedula(cedula) {
 }
 
 // ─────────────────────────────────────────────
-// SOCK GLOBAL para alertas de fraude
+// SOCK GLOBAL
 // ─────────────────────────────────────────────
 let sockGlobal = null;
 
@@ -241,17 +261,16 @@ Responde *NO* si NO la autorizaste 🔒 y bloquearemos tu cuenta de inmediato.`;
 
     if (sockGlobal) {
         await sockGlobal.sendMessage(numeroWhatsApp, { text: mensajeAlerta });
-
-        // También alertar al número registrado en BQ si es diferente al que inició la conversación
         if (telefonoRegistrado && telefonoRegistrado !== numeroWhatsApp) {
             await sockGlobal.sendMessage(telefonoRegistrado, { text: mensajeAlerta });
             console.log(`📲 Alerta enviada al teléfono registrado: ${telefonoRegistrado}`);
         }
     }
 
-    // Marcar alerta pendiente en sesión para capturar la respuesta del usuario
+    const alertaData = { pendiente: true, monto, cuenta, detalle, timestamp: Date.now(), cedula, numeroWA: numeroWhatsApp };
     const sesion = sesiones.get(numeroWhatsApp);
-    if (sesion) sesion.alertaFraude = { pendiente: true, monto, cuenta, detalle };
+    if (sesion) sesion.alertaFraude = alertaData;
+    if (cedula) alertasPorCedula.set(String(cedula), alertaData);
 }
 
 // ─────────────────────────────────────────────
@@ -401,7 +420,6 @@ Responde en texto natural directamente al cliente. Usa viñetas y tablas para cl
                     : { exito: false, error: bq.error };
 
             } else if (name === 'registrar_alerta_fraude') {
-                // Guardar en sesión para que el handler envíe la alerta después de la respuesta
                 const sesActual = sesiones.get(sesion.celular);
                 if (sesActual) {
                     sesActual.pendingFraudAlert = {
@@ -444,7 +462,6 @@ async function conectarWhatsApp() {
     sockGlobal = sock;
 
     if (!sock.authState.creds.registered) {
-        // NUMERO DE WHATSAPP PARA EL BOT
         const numeroBot = "573003094183";
         setTimeout(async () => {
             try {
@@ -483,7 +500,7 @@ async function conectarWhatsApp() {
         const numeroUsuario = msg.key.remoteJid;
         const m             = msg.message;
 
-        // Extracción robusta de texto (todos los tipos de Baileys)
+        // Extracción robusta de texto
         let textoUsuario =
             m.conversation ||
             m.extendedTextMessage?.text ||
@@ -526,62 +543,100 @@ async function conectarWhatsApp() {
 
         console.log(`👤 [${numeroUsuario.split('@')[0]}]: "${textoUsuario}"`);
 
-        // ── Sesión del usuario ──
-        // BUG FIX: Buscar primero con get() directo SIN crear sesión nueva,
-        // luego hacer fallback por 10 dígitos, y solo al final crear sesión vacía.
-        // El orden original llamaba a obtenerSesion() primero, lo que creaba una
-        // sesión vacía que hacía fallar el if de alertaFraude?.pendiente.
-        let sesion = sesiones.get(numeroUsuario); // lookup directo, SIN crear sesión nueva
+        // ════════════════════════════════════════════════════════
+        // RESOLUCIÓN DE SESIÓN — 3 capas
+        //
+        // El JID real de WhatsApp puede ser completamente diferente
+        // al número construido con el celular del portal.
+        // Ej: Baileys entrega "1406129510885280@s.whatsapp.net"
+        //     pero construimos "573053060560@s.whatsapp.net"
+        //
+        // Capa 1: JID exacto en sesiones
+        // Capa 2: Fallback por últimos 10 dígitos del JID
+        // Capa 3: Índice alertasPorCedula — busca por cédula de sesión
+        //         o por cédula detectada en el texto del mensaje
+        // ════════════════════════════════════════════════════════
 
-        if (!sesion?.alertaFraude?.pendiente) {
+        // Capa 1: lookup directo sin crear sesión nueva
+        let sesion = sesiones.get(numeroUsuario);
+        let alertaResuelta = !!sesion?.alertaFraude?.pendiente;
+
+        // Capa 2: fallback por últimos 10 dígitos
+        if (!alertaResuelta) {
             const digitos10 = numeroUsuario.replace(/\D/g, '').slice(-10);
             for (const [jid, s] of sesiones.entries()) {
                 if (s.alertaFraude?.pendiente) {
                     const jidDigitos = jid.replace(/\D/g, '').slice(-10);
                     if (jidDigitos === digitos10) {
-                        // Encontramos la sesión real — migrarla al JID correcto
                         sesiones.delete(jid);
                         s.celular = numeroUsuario;
                         sesiones.set(numeroUsuario, s);
                         sesion = s;
-                        console.log(`🔄 Sesión migrada: ${jid} → ${numeroUsuario}`);
+                        alertaResuelta = true;
+                        console.log(`🔄 Sesión migrada (10 dígitos): ${jid} → ${numeroUsuario}`);
                         break;
                     }
                 }
             }
         }
 
-        // Si después de ambas búsquedas no hay sesión, crear una nueva
+        // Capa 3: índice por cédula
+        // Aplica si las capas 1 y 2 no encontraron alerta pendiente.
+        // Busca por cédula ya conocida en la sesión, o por cédula detectada en el texto.
+        if (!alertaResuelta) {
+            if (!sesion) sesion = obtenerSesion(numeroUsuario);
+
+            const cedulaEnMensaje = textoUsuario?.match(/\b\d{7,11}\b/)?.[0];
+            const cedulaBusqueda  = sesion.cedula || cedulaEnMensaje;
+
+            if (cedulaBusqueda) {
+                const alertaCedula = alertasPorCedula.get(String(cedulaBusqueda));
+                if (alertaCedula?.pendiente) {
+                    console.log(`🔍 Alerta encontrada vía índice cédula ${cedulaBusqueda} para JID ${numeroUsuario}`);
+                    sesion.alertaFraude = alertaCedula;
+                    if (!sesion.cedula)  sesion.cedula = String(cedulaBusqueda);
+                    if (!sesion.nombre && alertaCedula.nombre) sesion.nombre = alertaCedula.nombre;
+                    sesiones.set(numeroUsuario, sesion);
+                    alertaResuelta = true;
+                }
+            }
+        }
+
+        // Garantizar que sesion esté inicializada
         if (!sesion) sesion = obtenerSesion(numeroUsuario);
 
-        // ── Manejo de respuesta a alerta de fraude pendiente ──
+        // ════════════════════════════════════════════════════════
+        // HANDLER DE RESPUESTA A ALERTA DE FRAUDE
+        // ════════════════════════════════════════════════════════
         if (sesion.alertaFraude?.pendiente) {
             const esNo = /^no\b|no fui|no la reconoc|no la autoriz|no autoriz/i.test(textoUsuario);
-            const esSi = /^s[íi]\b|sí fui|si fui|la reconoc|la autoricé|si la hice/i.test(textoUsuario);
+            const esSi = /^s[íi]\b|sí fui|si fui|la reconoc|la autoricé|si la hice|si fui yo/i.test(textoUsuario);
+
+            console.log(`🔐 Respuesta fraude | esNo: ${esNo} | esSi: ${esSi} | texto: "${textoUsuario}"`);
 
             if (esNo) {
+                const cedulaFraude = sesion.cedula || sesion.alertaFraude.cedula;
+                const idTx         = sesion.alertaFraude.idTransferencia;
                 sesion.alertaFraude.pendiente = false;
+                if (cedulaFraude) alertasPorCedula.delete(String(cedulaFraude));
 
-                // BUG FIX: Bloquear cuenta en BigQuery — antes solo enviaba el mensaje
-                // de texto pero no ejecutaba ningún UPDATE real en la base de datos.
-                if (sesion.cedula) {
+                if (cedulaFraude) {
                     try {
                         await ejecutarQueryBigQuery(`
                             UPDATE \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\`
                             SET estado_cuenta = 'BLOQUEADA'
-                            WHERE cedula = '${sesion.cedula}'
+                            WHERE cedula = '${cedulaFraude}'
                         `);
-                        console.log(`🔒 Cuenta ${sesion.cedula} bloqueada en BQ por reporte de fraude vía WA`);
+                        console.log(`🔒 Cuenta ${cedulaFraude} bloqueada en BQ`);
 
-                        // También marcar la transferencia como BLOQUEADA si tenemos el ID
-                        if (sesion.alertaFraude.idTransferencia) {
+                        if (idTx) {
                             await ejecutarQueryBigQuery(`
                                 UPDATE \`${PROJECT_ID}.banco_quind.transferencias\`
                                 SET estado = 'BLOQUEADA',
                                     motivo_bloqueo = 'Fraude reportado por titular vía WhatsApp'
-                                WHERE id_transferencia = '${sesion.alertaFraude.idTransferencia}'
+                                WHERE id_transferencia = '${idTx}'
                             `);
-                            console.log(`🔒 Transferencia ${sesion.alertaFraude.idTransferencia} marcada como BLOQUEADA`);
+                            console.log(`🔒 Transferencia ${idTx} marcada BLOQUEADA`);
                         }
                     } catch (err) {
                         console.error('❌ Error bloqueando cuenta en BQ:', err.message);
@@ -595,22 +650,100 @@ async function conectarWhatsApp() {
             }
 
             if (esSi) {
+                const cedulaFraude = sesion.cedula || sesion.alertaFraude.cedula;
+                const idTx         = sesion.alertaFraude.idTransferencia;
                 sesion.alertaFraude.pendiente = false;
+                if (cedulaFraude) alertasPorCedula.delete(String(cedulaFraude));
+
+                if (cedulaFraude) {
+                    try {
+                        // Reactivar cuenta
+                        await ejecutarQueryBigQuery(`
+                            UPDATE \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\`
+                            SET estado_cuenta = 'ACTIVA'
+                            WHERE cedula = '${cedulaFraude}'
+                              AND estado_cuenta = 'INVESTIGACION'
+                        `);
+                        console.log(`✅ Cuenta ${cedulaFraude} reactivada a ACTIVA en BQ`);
+
+                        if (idTx) {
+                            // Obtener datos de la transferencia para completar los movimientos
+                            const txRows = await ejecutarQueryBigQuery(`
+                                SELECT cedula_origen, cedula_destino, cuenta_destino, monto
+                                FROM \`${PROJECT_ID}.banco_quind.transferencias\`
+                                WHERE id_transferencia = '${idTx}'
+                                LIMIT 1
+                            `);
+
+                            if (txRows.exito && txRows.filas.length > 0) {
+                                const tx = txRows.filas[0];
+
+                                // Marcar transferencia como COMPLETADA
+                                await ejecutarQueryBigQuery(`
+                                    UPDATE \`${PROJECT_ID}.banco_quind.transferencias\`
+                                    SET estado = 'COMPLETADA',
+                                        motivo_bloqueo = NULL
+                                    WHERE id_transferencia = '${idTx}'
+                                `);
+
+                                // Débito al origen
+                                await ejecutarQueryBigQuery(`
+                                    UPDATE \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\`
+                                    SET saldo_actual = saldo_actual - ${tx.monto}
+                                    WHERE cedula = '${tx.cedula_origen}'
+                                `);
+
+                                // Crédito al destino
+                                await ejecutarQueryBigQuery(`
+                                    UPDATE \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\`
+                                    SET saldo_actual = saldo_actual + ${tx.monto}
+                                    WHERE cedula = '${tx.cedula_destino}'
+                                `);
+
+                                // Movimiento egreso origen
+                                await ejecutarQueryBigQuery(`
+                                    INSERT INTO \`${PROJECT_ID}.banco_quind.movimientos_cliente\`
+                                    (cedula, fecha, detalle, movimiento)
+                                    VALUES ('${tx.cedula_origen}', CURRENT_DATE(),
+                                            'Transferencia confirmada a cuenta ${tx.cuenta_destino}',
+                                            -${tx.monto})
+                                `);
+
+                                // Movimiento ingreso destino
+                                await ejecutarQueryBigQuery(`
+                                    INSERT INTO \`${PROJECT_ID}.banco_quind.movimientos_cliente\`
+                                    (cedula, fecha, detalle, movimiento)
+                                    VALUES ('${tx.cedula_destino}', CURRENT_DATE(),
+                                            'Transferencia recibida confirmada por titular',
+                                            ${tx.monto})
+                                `);
+
+                                console.log(`✅ Transferencia ${idTx} completada y saldos actualizados en BQ`);
+                            }
+                        }
+                    } catch (err) {
+                        console.error('❌ Error confirmando transferencia en BQ:', err.message);
+                    }
+                }
+
                 const nombreConfirm = sesion.nombre ? sesion.nombre.split(' ')[0] : 'cliente';
                 await sock.sendMessage(numeroUsuario, {
-                    text: `✅ Perfecto, *${nombreConfirm}*. Transacción confirmada y validada como autorizada. Queda registrada en tu historial.\n\n¿Hay algo más en lo que pueda ayudarte?`
+                    text: `✅ Perfecto, *${nombreConfirm}*. Transacción confirmada y validada como autorizada. Tu cuenta está activa y queda registrada en tu historial.\n\n¿Hay algo más en lo que pueda ayudarte?`
                 });
                 return;
             }
 
-            // Si responde algo distinto mientras hay alerta pendiente, recordarle
+            // Respuesta no reconocida mientras hay alerta pendiente
             await sock.sendMessage(numeroUsuario, {
                 text: `Por favor responde *SÍ* si reconoces la transferencia, o *NO* si no la autorizaste.`
             });
             return;
         }
 
-        // ── Detectar e identificar cédula si no hay sesión ──
+        // ════════════════════════════════════════════════════════
+        // FLUJO NORMAL — identificación y agente
+        // ════════════════════════════════════════════════════════
+
         const matchCedula = textoUsuario?.match(/\b\d{7,11}\b/);
         if (matchCedula && !sesion.cedula) {
             const cedulaDetectada = matchCedula[0];
@@ -633,7 +766,6 @@ async function conectarWhatsApp() {
 
         const sesionActual = obtenerSesion(numeroUsuario);
 
-        // ── Ejecutar agente dinámico ──
         try {
             const respuesta = await ejecutarAgenteFinanciero({
                 mensajeUsuario: textoUsuario,
@@ -641,7 +773,6 @@ async function conectarWhatsApp() {
                 pdfBase64
             });
 
-            // Procesar alerta de fraude si el agente la registró durante su ciclo
             if (sesionActual.pendingFraudAlert) {
                 const { monto, cuenta, detalle } = sesionActual.pendingFraudAlert;
                 sesionActual.pendingFraudAlert    = null;
@@ -665,8 +796,8 @@ async function conectarWhatsApp() {
     });
 }
 
-// ────────────────────────────────────────────
+// ─────────────────────────────────────────────
 // INICIO
-// ────────────────────────────────────────────
+// ─────────────────────────────────────────────
 console.log("▶️ Iniciando QuindBot...");
 conectarWhatsApp().catch(err => console.error("💥 ERROR CRÍTICO:", err));
