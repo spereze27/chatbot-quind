@@ -665,8 +665,8 @@ async function conectarWhatsApp() {
     });
 }
 
-// ─────────────────────────────────────────────
+// ────────────────────────────────────────────
 // INICIO
-// ─────────────────────────────────────────────
+// ────────────────────────────────────────────
 console.log("▶️ Iniciando QuindBot...");
 conectarWhatsApp().catch(err => console.error("💥 ERROR CRÍTICO:", err));
