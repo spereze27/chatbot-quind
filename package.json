@@ -1,21 +1,22 @@
 {
   "name": "chatbot-quind",
-  "version": "2.0.0",
-  "description": "QuindBot + La Gran Bancolombia — Repo unificado",
+  "version": "1.0.0",
+  "description": "QuindBot + La Gran Bancolombia",
+  "main": "app.js",
   "scripts": {
     "start": "node app.js",
     "start:web": "node server.js",
     "start:bot": "node app.js"
   },
   "dependencies": {
-    "@google-cloud/bigquery": "^7.3.0",
-    "@google/genai": "^1.0.0",
-    "@whiskeysockets/baileys": "^6.7.0",
+    "@google-cloud/bigquery": "^8.1.1",
+    "@google/genai": "^1.50.1",
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "cors": "^2.8.5",
-    "express": "^4.18.2",
+    "express": "^5.2.1",
     "express-rate-limit": "^7.1.5",
     "helmet": "^7.1.0",
-    "pino": "^8.19.0",
+    "pino": "^10.3.1",
     "uuid": "^9.0.1"
   }
 }

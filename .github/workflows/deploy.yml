@@ -11,14 +11,14 @@ env:
   SERVICE_BOT:      quindbot-service          # WhatsApp bot (app.js)
   SERVICE_WEB:      gran-bancolombia-service  # Portal web  (server.js)
   BUCKET_SESSION:   bkt-wa-session-data
-  IMAGE:            gcr.io/${{ secrets.GCP_PROJECT_ID }}/chatbot-quind
+  # Definimos la base de la imagen a nivel global para usarla en todos los jobs
+  IMAGE_BASE:       gcr.io/${{ secrets.GCP_PROJECT_ID }}/chatbot-quind
 
 jobs:
   build:
     name: 🏗️ Build imagen compartida
     runs-on: ubuntu-latest
-    outputs:
-      image: ${{ steps.build.outputs.image }}
+    # Eliminamos el bloque 'outputs', ya no es necesario
     steps:
       - name: ⬇️ Checkout
         uses: actions/checkout@v4
@@ -29,11 +29,9 @@ jobs:
           credentials_json: '${{ secrets.GCP_SA_KEY }}'
 
       - name: 🐳 Build & Push (Cloud Build)
-        id: build
         run: |
-          IMAGE="gcr.io/${{ env.PROJECT_ID }}/chatbot-quind:${{ github.sha }}"
-          gcloud builds submit --tag "$IMAGE" .
-          echo "image=$IMAGE" >> $GITHUB_OUTPUT
+          # Usamos la variable global + el SHA del commit
+          gcloud builds submit --tag "${{ env.IMAGE_BASE }}:${{ github.sha }}" .
 
   deploy-bot:
     name: 🤖 Deploy QuindBot (WhatsApp)
@@ -50,7 +48,8 @@ jobs:
         with:
           service: ${{ env.SERVICE_BOT }}
           region:  ${{ env.REGION }}
-          image:   ${{ needs.build.outputs.image }}
+          # Construimos la imagen localmente, garantizando que nunca llegue vacía
+          image:   ${{ env.IMAGE_BASE }}:${{ github.sha }}
           flags: |
             --min-instances=1
             --no-cpu-throttling
@@ -77,7 +76,7 @@ jobs:
         with:
           service: ${{ env.SERVICE_WEB }}
           region:  ${{ env.REGION }}
-          image:   ${{ needs.build.outputs.image }}
+          image:   ${{ env.IMAGE_BASE }}:${{ github.sha }}
           flags: |
             --min-instances=1
             --no-cpu-throttling
