@@ -2,10 +2,71 @@ console.log("🚀 [1/6] Iniciando QuindBot Pro - Asesor Bancario con Agente Din�
 
 const express = require('express');
 
-// --- SERVIDOR WEB PARA CLOUD RUN ---
+// ─────────────────────────────────────────────
+// SERVIDOR WEB PARA CLOUD RUN
+// ─────────────────────────────────────────────
 const app  = express();
 const port = process.env.PORT || 8080;
+
+app.use(express.json()); // Necesario para recibir JSON en /alerta-fraude
+
 app.get('/', (req, res) => res.send('🤖 QuindBot Pro está activo!'));
+
+// ── Endpoint interno: recibe alertas de fraude desde server.js (portal web) ──
+app.post('/alerta-fraude', async (req, res) => {
+    const { celular, monto, cuentaDestino, motivo, idTransferencia } = req.body;
+
+    console.log(`\n🚨 [ALERTA-FRAUDE] Recibida | celular: ${celular} | monto: ${monto}`);
+
+    if (!celular) {
+        return res.status(400).json({ error: 'celular requerido' });
+    }
+    if (!sockGlobal) {
+        return res.status(503).json({ error: 'Bot de WhatsApp no conectado aún' });
+    }
+
+    const numeroWA = `57${String(celular).replace(/\D/g, '')}@s.whatsapp.net`;
+    const ahora    = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
+
+    const mensajeAlerta =
+`🚨 *ALERTA DE SEGURIDAD — La Gran Bancolombia*
+
+Detectamos una transferencia inusual desde tu cuenta:
+
+💰 *Monto:* $${Number(monto).toLocaleString('es-CO')} COP
+🏦 *Cuenta destino:* ${cuentaDestino || 'No especificada'}
+⚠️ *Motivo de alerta:* ${motivo || 'Movimiento inusual'}
+🕐 *Fecha y hora:* ${ahora}
+🔖 *Referencia:* ${idTransferencia ? idTransferencia.slice(0, 8).toUpperCase() : 'N/A'}
+
+¿Fuiste tú quien realizó esta transferencia?
+
+Responde *SÍ* si la reconoces ✅
+Responde *NO* si NO la autorizaste 🔒
+(bloquearemos tu cuenta de inmediato)`;
+
+    try {
+        await sockGlobal.sendMessage(numeroWA, { text: mensajeAlerta });
+
+        // Registrar alerta pendiente en sesión para capturar la respuesta del usuario
+        const sesion = sesiones.get(numeroWA) || obtenerSesion(numeroWA);
+        sesion.alertaFraude = {
+            pendiente:      true,
+            monto,
+            cuenta:         cuentaDestino || 'No especificada',
+            detalle:        motivo || 'Transferencia inusual',
+            idTransferencia
+        };
+        sesiones.set(numeroWA, sesion);
+
+        console.log(`📲 Alerta enviada a WA: ${numeroWA}`);
+        res.json({ ok: true, numeroWA });
+    } catch (err) {
+        console.error('❌ Error enviando alerta WA:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.listen(port, '0.0.0.0', () => console.log(`🌐 Servidor Express en 0.0.0.0:${port}`));
 console.log("🔑 [2/6] Servidor listo.");
 
@@ -24,12 +85,9 @@ console.log("📦 [3/6] Librerías importadas.");
 
 // ─────────────────────────────────────────────
 // CONFIGURACIÓN GCP
-// IMPORTANTE: Si en Cloud Run el PROJECT_NUMBER difiere del PROJECT_ID,
-// siempre forzar PROJECT_ID via variable de entorno en Cloud Run.
 // ─────────────────────────────────────────────
 const PROJECT_ID    = process.env.PROJECT_ID    || 'datatest-347114';
 const DATA_STORE_ID = process.env.DATA_STORE_ID || 'documentacion-chatbot_1776440842820';
-const LOCATION      = 'global';
 
 // ─────────────────────────────────────────────
 // INICIALIZAR SDKs
@@ -56,7 +114,14 @@ function obtenerSesion(numero) {
         sesion.ultimaActividad = ahora;
         return sesion;
     }
-    const nueva = { cedula: null, nombre: null, celular: numero, ultimaActividad: ahora, alertaFraude: null, pendingFraudAlert: null };
+    const nueva = {
+        cedula:            null,
+        nombre:            null,
+        celular:           numero,
+        ultimaActividad:   ahora,
+        alertaFraude:      null,
+        pendingFraudAlert: null
+    };
     sesiones.set(numero, nueva);
     return nueva;
 }
@@ -100,7 +165,9 @@ async function ejecutarQueryBigQuery(sqlQuery) {
 async function obtenerClientePorCedula(cedula) {
     const resultado = await ejecutarQueryBigQuery(`
         SELECT nombres, apellidos, cedula, celular,
-               deuda_actual_tarjetas, cupo_total_tarjetas, saldo_promedio_cuentas
+               deuda_actual_tarjetas, cupo_total_tarjetas,
+               saldo_promedio_cuentas, saldo_actual,
+               numero_cuenta, estado_cuenta
         FROM \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\`
         WHERE cedula = '${cedula}'
         LIMIT 1
@@ -115,7 +182,8 @@ async function obtenerClientePorCedula(cedula) {
 let sockGlobal = null;
 
 // ─────────────────────────────────────────────
-// MOTOR DE ALERTAS DE FRAUDE
+// MOTOR DE ALERTAS DE FRAUDE (vía WhatsApp directo)
+// Usado cuando el agente detecta fraude en conversación WA
 // ─────────────────────────────────────────────
 async function enviarAlertaFraude({ cedula, monto, cuenta, detalle, numeroWhatsApp }) {
     console.log(`🚨 Enviando alerta de fraude | cédula: ${cedula} | monto: ${monto}`);
@@ -128,7 +196,7 @@ async function enviarAlertaFraude({ cedula, monto, cuenta, detalle, numeroWhatsA
     const ahora = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
 
     const mensajeAlerta =
-`🚨 *ALERTA DE SEGURIDAD — BANCO QUIND*
+`🚨 *ALERTA DE SEGURIDAD — La Gran Bancolombia*
 
 Detectamos una transacción inusual en tu cuenta:
 
@@ -139,27 +207,26 @@ Detectamos una transacción inusual en tu cuenta:
 
 ¿Fuiste tú quien realizó esta transacción?
 
-Responde *SÍ* si la reconoces.
-Responde *NO* si NO la autorizaste y bloquearemos tu cuenta de inmediato.`;
+Responde *SÍ* si la reconoces ✅
+Responde *NO* si NO la autorizaste 🔒 y bloquearemos tu cuenta de inmediato.`;
 
     if (sockGlobal) {
         await sockGlobal.sendMessage(numeroWhatsApp, { text: mensajeAlerta });
 
-        // También alertar al número registrado en BQ si es diferente
+        // También alertar al número registrado en BQ si es diferente al que inició la conversación
         if (telefonoRegistrado && telefonoRegistrado !== numeroWhatsApp) {
             await sockGlobal.sendMessage(telefonoRegistrado, { text: mensajeAlerta });
             console.log(`📲 Alerta enviada al teléfono registrado: ${telefonoRegistrado}`);
         }
     }
 
-    // Marcar alerta pendiente en sesión
+    // Marcar alerta pendiente en sesión para capturar la respuesta del usuario
     const sesion = sesiones.get(numeroWhatsApp);
     if (sesion) sesion.alertaFraude = { pendiente: true, monto, cuenta, detalle };
 }
 
 // ─────────────────────────────────────────────
 // AGENTE DINÁMICO CON FUNCTION CALLING
-// Gemini construye las queries según el contexto
 // ─────────────────────────────────────────────
 async function ejecutarAgenteFinanciero({ mensajeUsuario, sesion, pdfBase64 = null }) {
 
@@ -171,10 +238,17 @@ ESQUEMA DE BASE DE DATOS (BigQuery, proyecto: ${PROJECT_ID}):
 TABLA 1: \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\`
   • nombres (STRING), apellidos (STRING), cedula (STRING), celular (STRING)
   • deuda_actual_tarjetas (FLOAT), cupo_total_tarjetas (FLOAT), saldo_promedio_cuentas (FLOAT)
+  • saldo_actual (FLOAT) — saldo disponible en la cuenta del portal web
+  • numero_cuenta (STRING), estado_cuenta (STRING), fecha_registro (TIMESTAMP)
 
 TABLA 2: \`${PROJECT_ID}.banco_quind.movimientos_cliente\`
   • cedula (STRING), fecha (DATE/TIMESTAMP), detalle (STRING), movimiento (FLOAT)
   • movimiento > 0 = INGRESO | movimiento < 0 = EGRESO
+
+TABLA 3: \`${PROJECT_ID}.banco_quind.transferencias\`
+  • cedula_origen (STRING), cuenta_destino (STRING), monto (FLOAT)
+  • estado (STRING): COMPLETADA | INVESTIGACION | BLOQUEADA
+  • motivo_bloqueo (STRING), fecha (TIMESTAMP)
 ─────────────────────────────────────────────
 CLIENTE EN SESIÓN: ${sesion.nombre || 'No identificado'} | Cédula: ${sesion.cedula || 'No registrada'}
 
@@ -186,6 +260,7 @@ REGLAS DE COMPORTAMIENTO
 • Para CUALQUIER análisis financiero: usa consultar_bigquery. NO respondas con datos inventados.
 • Construye las queries de forma DINÁMICA según lo que pide el usuario.
 • Si detectas fraude o transacción inusual: usa registrar_alerta_fraude.
+• Para consultar el saldo actual usa el campo saldo_actual de la TABLA 1.
 
 ════════════════════════════════════
 CAPACIDADES
@@ -195,6 +270,7 @@ CAPACIDADES
 3. ANÁLISIS SALARIAL: cuartiles Q1-Q4 en mercado colombiano según profesión y experiencia
 4. SIMULACIONES: cuota con amortización francesa [P×r(1+r)^n]/[(1+r)^n-1], proyección ahorro
 5. DETECCIÓN FRAUDE: transacciones no reconocidas o de alto valor inusual
+6. SALDO Y ESTADO DE CUENTA: consulta saldo_actual y estado_cuenta de la tabla de clientes
 
 ════════════════════════════════════
 FORMATO
@@ -205,7 +281,7 @@ Responde en texto natural directamente al cliente. Usa viñetas y tablas para cl
         functionDeclarations: [
             {
                 name: "consultar_bigquery",
-                description: "Ejecuta una query SQL en BigQuery para obtener datos financieros reales. Úsala SIEMPRE que necesites datos de movimientos, ingresos, egresos, historial, perfil o cualquier análisis. Construye la query dinámicamente según lo que pide el usuario.",
+                description: "Ejecuta una query SQL en BigQuery para obtener datos financieros reales. Úsala SIEMPRE que necesites datos de movimientos, ingresos, egresos, historial, perfil, saldo o cualquier análisis. Construye la query dinámicamente según lo que pide el usuario.",
                 parameters: {
                     type: "OBJECT",
                     properties: {
@@ -246,7 +322,6 @@ Responde en texto natural directamente al cliente. Usa viñetas y tablas para cl
         ]
     }];
 
-    // Historial de mensajes para el ciclo agéntico
     const partsInicio = [{ text: mensajeUsuario }];
     if (pdfBase64) partsInicio.push({ inlineData: { mimeType: 'application/pdf', data: pdfBase64 } });
 
@@ -279,10 +354,8 @@ Responde en texto natural directamente al cliente. Usa viñetas y tablas para cl
             break;
         }
 
-        // Agregar respuesta del modelo al historial
         mensajes.push({ role: 'model', parts });
 
-        // Ejecutar cada función y recopilar resultados
         const resultados = [];
 
         for (const part of funcionCalls) {
@@ -299,12 +372,12 @@ Responde en texto natural directamente al cliente. Usa viñetas y tablas para cl
                     : { exito: false, error: bq.error };
 
             } else if (name === 'registrar_alerta_fraude') {
-                // Guardar en sesión para que el handler envíe la alerta después de recibir la respuesta
+                // Guardar en sesión para que el handler envíe la alerta después de la respuesta
                 const sesActual = sesiones.get(sesion.celular);
                 if (sesActual) {
                     sesActual.pendingFraudAlert = {
-                        monto: args.monto,
-                        cuenta: args.cuenta_destino || 'No especificada',
+                        monto:   args.monto,
+                        cuenta:  args.cuenta_destino || 'No especificada',
                         detalle: args.detalle || 'Transacción sospechosa'
                     };
                 }
@@ -482,7 +555,13 @@ async function conectarWhatsApp() {
             if (sesionActual.pendingFraudAlert) {
                 const { monto, cuenta, detalle } = sesionActual.pendingFraudAlert;
                 sesionActual.pendingFraudAlert    = null;
-                await enviarAlertaFraude({ cedula: sesionActual.cedula, monto, cuenta, detalle, numeroWhatsApp: numeroUsuario });
+                await enviarAlertaFraude({
+                    cedula:        sesionActual.cedula,
+                    monto,
+                    cuenta,
+                    detalle,
+                    numeroWhatsApp: numeroUsuario
+                });
             }
 
             await sock.sendMessage(numeroUsuario, { text: respuesta });

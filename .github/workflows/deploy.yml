@@ -13,6 +13,7 @@ env:
   BUCKET_SESSION:   bkt-wa-session-data
   # Definimos la base de la imagen a nivel global para usarla en todos los jobs
   IMAGE_BASE:       gcr.io/${{ secrets.GCP_PROJECT_ID }}/chatbot-quind
+  
 
 jobs:
   build:
@@ -85,6 +86,7 @@ jobs:
           env_vars: |
             APP_MODE=web
             PROJECT_ID=${{ env.PROJECT_ID }}
+            BOT_INTERNAL_URL=${{ secrets.BOT_INTERNAL_URL }}
 
       - name: 🌐 URL del portal
         run: |
