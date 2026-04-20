@@ -48,8 +48,17 @@ Responde *NO* si NO la autorizaste 🔒
     try {
         await sockGlobal.sendMessage(numeroWA, { text: mensajeAlerta });
 
-        // Registrar alerta pendiente en sesión para capturar la respuesta del usuario
-        const sesion = sesiones.get(numeroWA) || obtenerSesion(numeroWA);
+        // Preservar sesión existente (cedula, nombre) si ya existe,
+        // solo agregar/sobreescribir la alerta de fraude
+        const sesionExistente = sesiones.get(numeroWA);
+        const sesion = sesionExistente || {
+            cedula:            null,
+            nombre:            null,
+            celular:           numeroWA,
+            ultimaActividad:   Date.now(),
+            alertaFraude:      null,
+            pendingFraudAlert: null
+        };
         sesion.alertaFraude = {
             pendiente:      true,
             monto,
@@ -57,9 +66,10 @@ Responde *NO* si NO la autorizaste 🔒
             detalle:        motivo || 'Transferencia inusual',
             idTransferencia
         };
+        sesion.ultimaActividad = Date.now();
         sesiones.set(numeroWA, sesion);
 
-        console.log(`📲 Alerta enviada a WA: ${numeroWA}`);
+        console.log(`📲 Alerta registrada en sesión ${numeroWA} | cédula en sesión: ${sesion.cedula}`);
         res.json({ ok: true, numeroWA });
     } catch (err) {
         console.error('❌ Error enviando alerta WA:', err.message);
@@ -110,9 +120,17 @@ const TTL_MS   = 60 * 60 * 1000;
 function obtenerSesion(numero) {
     const ahora  = Date.now();
     const sesion = sesiones.get(numero);
-    if (sesion && (ahora - sesion.ultimaActividad) < TTL_MS) {
-        sesion.ultimaActividad = ahora;
-        return sesion;
+    if (sesion) {
+        // NUNCA resetear una sesión con alerta de fraude pendiente,
+        // aunque haya expirado el TTL normal
+        if (sesion.alertaFraude?.pendiente) {
+            sesion.ultimaActividad = ahora;
+            return sesion;
+        }
+        if ((ahora - sesion.ultimaActividad) < TTL_MS) {
+            sesion.ultimaActividad = ahora;
+            return sesion;
+        }
     }
     const nueva = {
         cedula:            null,
@@ -134,11 +152,12 @@ function guardarSesion(numero, datos) {
     console.log(`💾 Sesión | ${numero.split('@')[0]} → cédula: ${sesion.cedula} | nombre: ${sesion.nombre}`);
 }
 
-// Limpieza periódica cada 30 minutos
+// Limpieza periódica cada 30 minutos — respeta sesiones con alerta pendiente
 setInterval(() => {
     const ahora = Date.now();
     let n = 0;
     for (const [k, v] of sesiones.entries()) {
+        if (v.alertaFraude?.pendiente) continue; // nunca limpiar alertas pendientes
         if ((ahora - v.ultimaActividad) >= TTL_MS) { sesiones.delete(k); n++; }
     }
     if (n > 0) console.log(`🧹 ${n} sesión(es) expirada(s) eliminada(s).`);
