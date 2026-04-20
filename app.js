@@ -425,9 +425,9 @@ Responde en texto natural directamente al cliente. Usa viñetas y tablas para cl
     return respuestaFinal || "He procesado tu solicitud. ¿En qué más puedo ayudarte?";
 }
 
-// ─────────────────────────────────────────────
+// ────────────────────────────────────────────
 // CONEXIÓN WHATSAPP (BAILEYS)
-// ─────────────────────────────────────────────
+// ────────────────────────────────────────────
 async function conectarWhatsApp() {
     console.log("🔄 [5/6] Preparando conexión a WhatsApp...");
     const { state, saveCreds } = await useMultiFileAuthState('sesion_wa_limpia');
@@ -444,6 +444,7 @@ async function conectarWhatsApp() {
     sockGlobal = sock;
 
     if (!sock.authState.creds.registered) {
+        // NUMERO DE WHATSAPP PARA EL BOT
         const numeroBot = "573003094183";
         setTimeout(async () => {
             try {
