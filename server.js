@@ -28,6 +28,7 @@ const TBL_TRANSFERENCIAS = `\`${PROJECT_ID}.${DATASET}.transferencias\``;
 const bigquery = new BigQuery({ projectId: PROJECT_ID });
 
 // ── Middlewares ────────────────────────────────────────────────
+app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 app.use(express.json());
