@@ -51,7 +51,16 @@ function generarNumeroCuenta() {
 
 async function bqQuery(sql, params = []) {
   const options = { query: sql, location: 'US' };
-  if (params.length) options.params = params;
+  
+  if (params && params.length > 0) {
+    // Convierte el arreglo [{name: 'x', value: 'y'}] al objeto {x: 'y'} que exige BigQuery
+    const parametrosFormateados = {};
+    params.forEach(p => {
+      parametrosFormateados[p.name] = p.value;
+    });
+    options.params = parametrosFormateados;
+  }
+  
   const [rows] = await bigquery.query(options);
   return rows;
 }
