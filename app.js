@@ -78,7 +78,8 @@ Responde *NO* si NO la autorizaste 🔒
         sesion.ultimaActividad = Date.now();
         sesiones.set(numeroWA, sesion);
 
-        console.log(`📲 Alerta registrada en sesión ${numeroWA} | cédula en sesión: ${sesion.cedula}`);
+        console.log(`📲 Alerta registrada en sesión ${numeroWA} | cédula: ${sesion.cedula} | nombre: ${sesion.nombre}`);
+        console.log(`📱 JID construido del celular: ${numeroWA} (celular BQ: ${celular})`);
         res.json({ ok: true, numeroWA });
     } catch (err) {
         console.error('❌ Error enviando alerta WA:', err.message);
@@ -525,7 +526,28 @@ async function conectarWhatsApp() {
         console.log(`👤 [${numeroUsuario.split('@')[0]}]: "${textoUsuario}"`);
 
         // ── Sesión del usuario ──
-        const sesion = obtenerSesion(numeroUsuario);
+        // Buscar primero por JID exacto; si no hay alerta pendiente,
+        // hacer fallback por los últimos 10 dígitos (resuelve mismatch
+        // entre el formato 57XXXXXXXXXX del portal y el JID real de WA).
+        let sesion = obtenerSesion(numeroUsuario);
+
+        if (!sesion.alertaFraude?.pendiente) {
+            const digitos10 = numeroUsuario.replace(/\D/g, '').slice(-10);
+            for (const [jid, s] of sesiones.entries()) {
+                if (s.alertaFraude?.pendiente) {
+                    const jidDigitos = jid.replace(/\D/g, '').slice(-10);
+                    if (jidDigitos === digitos10) {
+                        // Encontramos la sesión real — migrarla al JID correcto
+                        sesiones.delete(jid);
+                        s.celular = numeroUsuario;
+                        sesiones.set(numeroUsuario, s);
+                        sesion = s;
+                        console.log(`🔄 Sesión migrada: ${jid} → ${numeroUsuario}`);
+                        break;
+                    }
+                }
+            }
+        }
 
         // ── Manejo de respuesta a alerta de fraude pendiente ──
         if (sesion.alertaFraude?.pendiente) {
