@@ -14,9 +14,9 @@ app.get('/', (req, res) => res.send('🤖 QuindBot Pro está activo!'));
 
 // ── Endpoint interno: recibe alertas de fraude desde server.js (portal web) ──
 app.post('/alerta-fraude', async (req, res) => {
-    const { celular, monto, cuentaDestino, motivo, idTransferencia } = req.body;
+    const { celular, cedula, nombre, monto, cuentaDestino, motivo, idTransferencia } = req.body;
 
-    console.log(`\n🚨 [ALERTA-FRAUDE] Recibida | celular: ${celular} | monto: ${monto}`);
+    console.log(`\n🚨 [ALERTA-FRAUDE] Recibida | celular: ${celular} | cedula: ${cedula} | monto: ${monto}`);
 
     if (!celular) {
         return res.status(400).json({ error: 'celular requerido' });
@@ -28,10 +28,15 @@ app.post('/alerta-fraude', async (req, res) => {
     const numeroWA = `57${String(celular).replace(/\D/g, '')}@s.whatsapp.net`;
     const ahora    = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
 
+    // Saludo personalizado si tenemos el nombre, genérico si no
+    const saludoLinea = nombre
+        ? `Hola *${nombre.split(' ')[0]}*, detectamos una transferencia inusual desde tu cuenta:`
+        : `Detectamos una transferencia inusual desde tu cuenta:`;
+
     const mensajeAlerta =
 `🚨 *ALERTA DE SEGURIDAD — La Gran Bancolombia*
 
-Detectamos una transferencia inusual desde tu cuenta:
+${saludoLinea}
 
 💰 *Monto:* $${Number(monto).toLocaleString('es-CO')} COP
 🏦 *Cuenta destino:* ${cuentaDestino || 'No especificada'}
@@ -48,8 +53,7 @@ Responde *NO* si NO la autorizaste 🔒
     try {
         await sockGlobal.sendMessage(numeroWA, { text: mensajeAlerta });
 
-        // Preservar sesión existente (cedula, nombre) si ya existe,
-        // solo agregar/sobreescribir la alerta de fraude
+        // Preservar sesión existente si ya existe; si no, crearla con cedula y nombre del portal
         const sesionExistente = sesiones.get(numeroWA);
         const sesion = sesionExistente || {
             cedula:            null,
@@ -59,6 +63,11 @@ Responde *NO* si NO la autorizaste 🔒
             alertaFraude:      null,
             pendingFraudAlert: null
         };
+
+        // Inyectar cedula y nombre si el portal los proveyó y la sesión aún no los tiene
+        if (cedula  && !sesion.cedula)  sesion.cedula  = cedula;
+        if (nombre  && !sesion.nombre)  sesion.nombre  = nombre;
+
         sesion.alertaFraude = {
             pendiente:      true,
             monto,
@@ -532,11 +541,18 @@ async function conectarWhatsApp() {
             }
             if (esSi) {
                 sesion.alertaFraude.pendiente = false;
+                const nombreConfirm = sesion.nombre ? sesion.nombre.split(' ')[0] : 'cliente';
                 await sock.sendMessage(numeroUsuario, {
-                    text: `✅ Transacción confirmada y validada como autorizada. Queda registrada en tu historial.\n\n¿Hay algo más en lo que pueda ayudarte?`
+                    text: `✅ Perfecto, *${nombreConfirm}*. Transacción confirmada y validada como autorizada. Queda registrada en tu historial.\n\n¿Hay algo más en lo que pueda ayudarte?`
                 });
                 return;
             }
+
+            // Si responde algo distinto mientras hay alerta pendiente, recordarle
+            await sock.sendMessage(numeroUsuario, {
+                text: `Por favor responde *SÍ* si reconoces la transferencia, o *NO* si no la autorizaste.`
+            });
+            return;
         }
 
         // ── Detectar e identificar cédula si no hay sesión ──

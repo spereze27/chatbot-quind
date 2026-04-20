@@ -423,17 +423,22 @@ app.post('/api/transferencia', async (req, res) => {
                 [{ name: 'cedula', value: cedulaOrigen }]
             );
 
-            // ── Obtener celular y notificar al bot de WhatsApp ──
+            // ── Obtener celular, nombre y cédula — notificar al bot de WhatsApp ──
             try {
                 const clienteRows = await bqQuery(
-                    `SELECT celular FROM ${TBL_CLIENTES} WHERE cedula = @cedula LIMIT 1`,
+                    `SELECT celular, nombres, apellidos FROM ${TBL_CLIENTES} WHERE cedula = @cedula LIMIT 1`,
                     [{ name: 'cedula', value: cedulaOrigen }]
                 );
                 const celular = clienteRows[0]?.celular;
+                const nombre  = clienteRows[0]
+                    ? `${clienteRows[0].nombres} ${clienteRows[0].apellidos}`
+                    : null;
 
                 if (celular) {
                     await notificarBotFraude({
                         celular,
+                        cedula:         cedulaOrigen,
+                        nombre,
                         monto,
                         cuentaDestino,
                         motivo:         analisis.alertas.join(', '),
