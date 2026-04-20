@@ -64,20 +64,41 @@ async function bqQuery(sql, params = []) {
     return rows;
 }
 
+// ── Obtener token de identidad para llamadas autenticadas entre servicios Cloud Run ──
+// Usa el metadata server de GCP (disponible automáticamente dentro de Cloud Run)
+async function obtenerIdToken(audiencia) {
+    const url = `http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=${encodeURIComponent(audiencia)}`;
+    const res = await fetch(url, {
+        headers: { 'Metadata-Flavor': 'Google' },
+        signal:  AbortSignal.timeout(3000)
+    });
+    if (!res.ok) throw new Error(`Metadata server respondió ${res.status}`);
+    return res.text(); // retorna el JWT como string plano
+}
+
 // ── Notificador al bot de WhatsApp ─────────────────────────────
 // Llama al endpoint /alerta-fraude del servicio quindbot-service
+// con el token de identidad requerido por Cloud Run
 async function notificarBotFraude({ celular, monto, cuentaDestino, motivo, idTransferencia }) {
     if (!BOT_INTERNAL_URL) {
         console.warn('⚠️  BOT_INTERNAL_URL no configurado — notificación WA omitida.');
         return;
     }
     try {
+        // 1. Obtener token de identidad con la URL del bot como audiencia
+        const idToken = await obtenerIdToken(BOT_INTERNAL_URL);
+
+        // 2. Llamar al bot con el token en el header Authorization
         const res = await fetch(`${BOT_INTERNAL_URL}/alerta-fraude`, {
             method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ celular, monto, cuentaDestino, motivo, idTransferencia }),
-            signal: AbortSignal.timeout(8000) // 8 s máximo
+            headers: {
+                'Content-Type':  'application/json',
+                'Authorization': `Bearer ${idToken}`
+            },
+            body:   JSON.stringify({ celular, monto, cuentaDestino, motivo, idTransferencia }),
+            signal: AbortSignal.timeout(8000)
         });
+
         if (!res.ok) {
             const txt = await res.text();
             console.error(`❌ Bot respondió ${res.status}: ${txt}`);
