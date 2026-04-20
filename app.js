@@ -527,12 +527,13 @@ async function conectarWhatsApp() {
         console.log(`👤 [${numeroUsuario.split('@')[0]}]: "${textoUsuario}"`);
 
         // ── Sesión del usuario ──
-        // Buscar primero por JID exacto; si no hay alerta pendiente,
-        // hacer fallback por los últimos 10 dígitos (resuelve mismatch
-        // entre el formato 57XXXXXXXXXX del portal y el JID real de WA).
-        let sesion = obtenerSesion(numeroUsuario);
+        // BUG FIX: Buscar primero con get() directo SIN crear sesión nueva,
+        // luego hacer fallback por 10 dígitos, y solo al final crear sesión vacía.
+        // El orden original llamaba a obtenerSesion() primero, lo que creaba una
+        // sesión vacía que hacía fallar el if de alertaFraude?.pendiente.
+        let sesion = sesiones.get(numeroUsuario); // lookup directo, SIN crear sesión nueva
 
-        if (!sesion.alertaFraude?.pendiente) {
+        if (!sesion?.alertaFraude?.pendiente) {
             const digitos10 = numeroUsuario.replace(/\D/g, '').slice(-10);
             for (const [jid, s] of sesiones.entries()) {
                 if (s.alertaFraude?.pendiente) {
@@ -550,6 +551,9 @@ async function conectarWhatsApp() {
             }
         }
 
+        // Si después de ambas búsquedas no hay sesión, crear una nueva
+        if (!sesion) sesion = obtenerSesion(numeroUsuario);
+
         // ── Manejo de respuesta a alerta de fraude pendiente ──
         if (sesion.alertaFraude?.pendiente) {
             const esNo = /^no\b|no fui|no la reconoc|no la autoriz|no autoriz/i.test(textoUsuario);
@@ -557,11 +561,39 @@ async function conectarWhatsApp() {
 
             if (esNo) {
                 sesion.alertaFraude.pendiente = false;
+
+                // BUG FIX: Bloquear cuenta en BigQuery — antes solo enviaba el mensaje
+                // de texto pero no ejecutaba ningún UPDATE real en la base de datos.
+                if (sesion.cedula) {
+                    try {
+                        await ejecutarQueryBigQuery(`
+                            UPDATE \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\`
+                            SET estado_cuenta = 'BLOQUEADA'
+                            WHERE cedula = '${sesion.cedula}'
+                        `);
+                        console.log(`🔒 Cuenta ${sesion.cedula} bloqueada en BQ por reporte de fraude vía WA`);
+
+                        // También marcar la transferencia como BLOQUEADA si tenemos el ID
+                        if (sesion.alertaFraude.idTransferencia) {
+                            await ejecutarQueryBigQuery(`
+                                UPDATE \`${PROJECT_ID}.banco_quind.transferencias\`
+                                SET estado = 'BLOQUEADA',
+                                    motivo_bloqueo = 'Fraude reportado por titular vía WhatsApp'
+                                WHERE id_transferencia = '${sesion.alertaFraude.idTransferencia}'
+                            `);
+                            console.log(`🔒 Transferencia ${sesion.alertaFraude.idTransferencia} marcada como BLOQUEADA`);
+                        }
+                    } catch (err) {
+                        console.error('❌ Error bloqueando cuenta en BQ:', err.message);
+                    }
+                }
+
                 await sock.sendMessage(numeroUsuario, {
                     text: `🔒 *Cuenta bloqueada preventivamente.*\n\nTu caso ha sido escalado al equipo de seguridad. Un asesor se comunicará contigo al número registrado.\n\n📞 Línea de fraudes: *018000-QUIND*\n\n¿Necesitas algo más?`
                 });
                 return;
             }
+
             if (esSi) {
                 sesion.alertaFraude.pendiente = false;
                 const nombreConfirm = sesion.nombre ? sesion.nombre.split(' ')[0] : 'cliente';
