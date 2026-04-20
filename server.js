@@ -40,7 +40,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const limiter = rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true });
 app.use('/api/', limiter);
 
-// ── Utilidades ─────────────────────────────────────────────────
+// ── Utilidades ────────────────────────────────────────────────
 const sha256 = (str) => crypto.createHash('sha256').update(str).digest('hex');
 
 function generarNumeroCuenta() {
