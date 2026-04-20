@@ -79,36 +79,40 @@ async function obtenerIdToken(audiencia) {
 // ── Notificador al bot de WhatsApp ─────────────────────────────
 // Llama al endpoint /alerta-fraude del servicio quindbot-service
 // con el token de identidad requerido por Cloud Run
-async function notificarBotFraude({ celular, monto, cuentaDestino, motivo, idTransferencia }) {
+async function notificarBotFraude({ celular, cedula, nombre, monto, cuentaDestino, motivo, idTransferencia }) {
     if (!BOT_INTERNAL_URL) {
         console.warn('⚠️  BOT_INTERNAL_URL no configurado — notificación WA omitida.');
         return;
     }
-    try {
-        // 1. Obtener token de identidad con la URL del bot como audiencia
-        const idToken = await obtenerIdToken(BOT_INTERNAL_URL);
+    // Fire-and-forget: no bloqueamos el response al cliente esperando al bot.
+    // El bot puede estar en cold start (hasta 20s); el portal responde de inmediato.
+    (async () => {
+        try {
+            // 1. Obtener token de identidad con la URL del bot como audiencia
+            const idToken = await obtenerIdToken(BOT_INTERNAL_URL);
 
-        // 2. Llamar al bot con el token en el header Authorization
-        const res = await fetch(`${BOT_INTERNAL_URL}/alerta-fraude`, {
-            method:  'POST',
-            headers: {
-                'Content-Type':  'application/json',
-                'Authorization': `Bearer ${idToken}`
-            },
-            body:   JSON.stringify({ celular, monto, cuentaDestino, motivo, idTransferencia }),
-            signal: AbortSignal.timeout(8000)
-        });
+            // 2. Llamar al bot con el token en el header Authorization
+            // Timeout de 25s para dar tiempo al cold start del bot
+            const res = await fetch(`${BOT_INTERNAL_URL}/alerta-fraude`, {
+                method:  'POST',
+                headers: {
+                    'Content-Type':  'application/json',
+                    'Authorization': `Bearer ${idToken}`
+                },
+                body:   JSON.stringify({ celular, cedula, nombre, monto, cuentaDestino, motivo, idTransferencia }),
+                signal: AbortSignal.timeout(25000)
+            });
 
-        if (!res.ok) {
-            const txt = await res.text();
-            console.error(`❌ Bot respondió ${res.status}: ${txt}`);
-        } else {
-            console.log(`📲 Alerta enviada al bot WA | celular: ${celular}`);
+            if (!res.ok) {
+                const txt = await res.text();
+                console.error(`❌ Bot respondió ${res.status}: ${txt}`);
+            } else {
+                console.log(`📲 Alerta enviada al bot WA | celular: ${celular} | cedula: ${cedula}`);
+            }
+        } catch (err) {
+            console.error('❌ Error al notificar al bot:', err.message);
         }
-    } catch (err) {
-        // No bloquear la respuesta al cliente si falla la notificación
-        console.error('❌ Error al notificar al bot:', err.message);
-    }
+    })();
 }
 
 // ── Detección de fraude ────────────────────────────────────────
