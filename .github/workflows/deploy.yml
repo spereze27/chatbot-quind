@@ -1,21 +1,26 @@
-name: Deploy QuindBot to Cloud Run
+name: Deploy Chatbot-Quind to Cloud Run
 
 on:
   push:
     branches:
-      - main # Se activa al hacer push a la rama principal
+      - main
 
 env:
-  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  REGION: us-central1
-  SERVICE_NAME: quindbot-service
-  BUCKET_NAME: bkt-wa-session-data # El bucket que creamos para la sesión
+  PROJECT_ID:       ${{ secrets.GCP_PROJECT_ID }}
+  REGION:           us-central1
+  SERVICE_BOT:      quindbot-service          # WhatsApp bot (app.js)
+  SERVICE_WEB:      gran-bancolombia-service  # Portal web  (server.js)
+  BUCKET_SESSION:   bkt-wa-session-data
+  IMAGE:            gcr.io/${{ secrets.GCP_PROJECT_ID }}/chatbot-quind
 
 jobs:
-  deploy:
+  build:
+    name: 🏗️ Build imagen compartida
     runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.build.outputs.image }}
     steps:
-      - name: ⬇️ Checkout code
+      - name: ⬇️ Checkout
         uses: actions/checkout@v4
 
       - name: 🔐 Google Auth
@@ -23,24 +28,67 @@ jobs:
         with:
           credentials_json: '${{ secrets.GCP_SA_KEY }}'
 
-      - name: 🏗️ Build and Push Container
-        # Usamos Cloud Build para crear la imagen de Docker sin necesidad de instalar Docker en el runner
+      - name: 🐳 Build & Push (Cloud Build)
+        id: build
         run: |
-          gcloud builds submit --tag gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }} .
+          IMAGE="gcr.io/${{ env.PROJECT_ID }}/chatbot-quind:${{ github.sha }}"
+          gcloud builds submit --tag "$IMAGE" .
+          echo "image=$IMAGE" >> $GITHUB_OUTPUT
 
-      - name: 🚀 Deploy to Cloud Run
+  deploy-bot:
+    name: 🤖 Deploy QuindBot (WhatsApp)
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔐 Google Auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: 🚀 Deploy quindbot-service
         uses: google-github-actions/deploy-cloudrun@v2
         with:
-          service: ${{ env.SERVICE_NAME }}
-          region: ${{ env.REGION }}
-          image: gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}
-          # Configuración de persistencia y variables de entorno
+          service: ${{ env.SERVICE_BOT }}
+          region:  ${{ env.REGION }}
+          image:   ${{ needs.build.outputs.image }}
           flags: |
             --min-instances=1
             --no-cpu-throttling
-            --add-volume=name=wa-session,type=cloud-storage,bucket=${{ env.BUCKET_NAME }}
+            --add-volume=name=wa-session,type=cloud-storage,bucket=${{ env.BUCKET_SESSION }}
             --add-volume-mount=volume=wa-session,mount-path=/usr/src/app/sesion_wa_limpia
-            --service-account=vertex-whatsapp-bot@datatest-347114.iam.gserviceaccount.com
+            --service-account=vertex-whatsapp-bot@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
           env_vars: |
+            APP_MODE=bot
             PROJECT_ID=${{ env.PROJECT_ID }}
             DATA_STORE_ID=${{ secrets.DATA_STORE_ID }}
+
+  deploy-web:
+    name: 🌐 Deploy La Gran Bancolombia (Portal)
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔐 Google Auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: 🚀 Deploy gran-bancolombia-service
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_WEB }}
+          region:  ${{ env.REGION }}
+          image:   ${{ needs.build.outputs.image }}
+          flags: |
+            --min-instances=1
+            --no-cpu-throttling
+            --allow-unauthenticated
+            --service-account=vertex-whatsapp-bot@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
+          env_vars: |
+            APP_MODE=web
+            PROJECT_ID=${{ env.PROJECT_ID }}
+
+      - name: 🌐 URL del portal
+        run: |
+          gcloud run services describe ${{ env.SERVICE_WEB }} \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)'

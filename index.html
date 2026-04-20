@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>La Gran Bancolombia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  /* ── Variables ───────────────────────────── */
+  :root {
+    --gold:    #FFD100;
+    --gold-dk: #C9A800;
+    --navy:    #003087;
+    --navy-dk: #001A5C;
+    --navy-lt: #0047BB;
+    --teal:    #00A3A1;
+    --red:     #E5001A;
+    --green:   #00875A;
+    --white:   #FFFFFF;
+    --gray-50: #F7F8FA;
+    --gray-100:#EEF0F4;
+    --gray-200:#D8DCE6;
+    --gray-500:#6B7490;
+    --gray-700:#2E3450;
+    --shadow-sm: 0 2px 8px rgba(0,48,135,.08);
+    --shadow-md: 0 8px 32px rgba(0,48,135,.14);
+    --shadow-lg: 0 20px 60px rgba(0,48,135,.20);
+    --r-sm: 12px;
+    --r-md: 20px;
+    --r-lg: 28px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--gray-50);
+    color: var(--gray-700);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── PANTALLAS ───────────────────────────── */
+  .screen { display: none; min-height: 100vh; }
+  .screen.active { display: flex; flex-direction: column; }
+
+  /* ══════════════════════════════════════════
+     PANTALLA 1: LOGIN / REGISTRO
+  ══════════════════════════════════════════ */
+  #screen-auth {
+    background: linear-gradient(145deg, var(--navy-dk) 0%, var(--navy) 50%, var(--navy-lt) 100%);
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Fondo decorativo */
+  #screen-auth::before {
+    content: '';
+    position: absolute;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,209,0,.15) 0%, transparent 70%);
+    top: -200px; right: -200px;
+    animation: pulse 4s ease-in-out infinite;
+  }
+  #screen-auth::after {
+    content: '';
+    position: absolute;
+    width: 400px; height: 400px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,163,161,.12) 0%, transparent 70%);
+    bottom: -150px; left: -100px;
+    animation: pulse 6s ease-in-out infinite reverse;
+  }
+  @keyframes pulse {
+    0%,100% { transform: scale(1); opacity:.7; }
+    50% { transform: scale(1.15); opacity: 1; }
+  }
+
+  .auth-card {
+    background: var(--white);
+    border-radius: var(--r-lg);
+    padding: 40px 36px;
+    width: 100%; max-width: 420px;
+    box-shadow: var(--shadow-lg);
+    position: relative; z-index: 1;
+    animation: slideUp .5s cubic-bezier(.16,1,.3,1);
+  }
+  @keyframes slideUp {
+    from { opacity:0; transform: translateY(30px); }
+    to   { opacity:1; transform: translateY(0); }
+  }
+
+  .brand {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 32px;
+  }
+  .brand-icon {
+    width: 48px; height: 48px;
+    background: var(--navy);
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  .brand-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px; font-weight: 800;
+    color: var(--navy);
+    line-height: 1.1;
+  }
+  .brand-name span { color: var(--gold-dk); }
+
+  .tabs {
+    display: flex; gap: 4px;
+    background: var(--gray-100);
+    border-radius: var(--r-sm);
+    padding: 4px; margin-bottom: 28px;
+  }
+  .tab-btn {
+    flex: 1; padding: 10px;
+    border: none; border-radius: 9px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 500;
+    cursor: pointer; transition: all .25s;
+    background: transparent; color: var(--gray-500);
+  }
+  .tab-btn.active {
+    background: var(--navy);
+    color: var(--white);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; animation: fadeIn .3s ease; }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+  .form-group { margin-bottom: 16px; }
+  .form-group label {
+    display: block;
+    font-size: 13px; font-weight: 500;
+    color: var(--gray-500); margin-bottom: 6px;
+  }
+  .form-group input {
+    width: 100%; padding: 13px 16px;
+    border: 2px solid var(--gray-200);
+    border-radius: var(--r-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px; color: var(--gray-700);
+    background: var(--white);
+    transition: border-color .2s, box-shadow .2s;
+    outline: none;
+  }
+  .form-group input:focus {
+    border-color: var(--navy);
+    box-shadow: 0 0 0 4px rgba(0,48,135,.1);
+  }
+  .form-group input.error { border-color: var(--red); }
+
+  .pin-row {
+    display: flex; gap: 10px;
+  }
+  .pin-row input {
+    flex: 1; text-align: center; font-size: 22px;
+    padding: 12px 0; letter-spacing: 4px;
+    font-weight: 600;
+  }
+
+  .btn-primary {
+    width: 100%; padding: 15px;
+    background: var(--navy);
+    color: var(--white);
+    border: none; border-radius: var(--r-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px; font-weight: 600;
+    cursor: pointer; transition: all .2s;
+    margin-top: 8px; position: relative;
+    overflow: hidden;
+  }
+  .btn-primary:hover { background: var(--navy-lt); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary.loading { pointer-events: none; opacity: .7; }
+  .btn-primary.loading::after {
+    content: '';
+    position: absolute; right: 18px; top: 50%;
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,.4);
+    border-top-color: white;
+    border-radius: 50%; margin-top: -8px;
+    animation: spin .6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .msg-error {
+    background: #FFF0F0; color: var(--red);
+    border: 1px solid #FFCCCC;
+    border-radius: var(--r-sm);
+    padding: 12px 14px; font-size: 14px;
+    margin-top: 14px; display: none;
+  }
+  .msg-success {
+    background: #F0FFF6; color: var(--green);
+    border: 1px solid #B3F0D0;
+    border-radius: var(--r-sm);
+    padding: 12px 14px; font-size: 14px;
+    margin-top: 14px; display: none;
+  }
+
+  /* ══════════════════════════════════════════
+     PANTALLA 2: DASHBOARD
+  ══════════════════════════════════════════ */
+  #screen-dashboard { background: var(--gray-50); }
+
+  /* TOPBAR */
+  .topbar {
+    background: var(--navy);
+    padding: 0 24px;
+    height: 64px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 2px 20px rgba(0,0,0,.2);
+  }
+  .topbar .brand-name { color: var(--white); font-size: 16px; }
+  .topbar .brand-name span { color: var(--gold); }
+  .topbar-right { display: flex; align-items: center; gap: 16px; }
+  .topbar-user {
+    font-size: 14px; color: rgba(255,255,255,.8);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .avatar {
+    width: 36px; height: 36px;
+    background: var(--gold);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px; color: var(--navy);
+  }
+  .btn-logout {
+    background: rgba(255,255,255,.12);
+    border: 1px solid rgba(255,255,255,.2);
+    color: white; padding: 7px 14px;
+    border-radius: 8px; cursor: pointer;
+    font-size: 13px; font-family: 'DM Sans', sans-serif;
+    transition: background .2s;
+  }
+  .btn-logout:hover { background: rgba(255,255,255,.2); }
+
+  /* HERO CARD */
+  .hero-section {
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-lt) 100%);
+    padding: 32px 24px 80px;
+    position: relative; overflow: hidden;
+  }
+  .hero-section::after {
+    content: '';
+    position: absolute;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(255,209,0,.2) 0%, transparent 70%);
+    top: -80px; right: -80px;
+    border-radius: 50%;
+  }
+  .hero-label {
+    font-size: 13px; color: rgba(255,255,255,.65);
+    font-weight: 500; margin-bottom: 6px;
+  }
+  .hero-saldo {
+    font-family: 'Syne', sans-serif;
+    font-size: 42px; font-weight: 800;
+    color: white; line-height: 1;
+    margin-bottom: 4px;
+  }
+  .hero-cuenta {
+    font-size: 13px; color: rgba(255,255,255,.55);
+  }
+  .hero-cuenta strong { color: rgba(255,255,255,.85); }
+
+  .main-content {
+    max-width: 900px; margin: -48px auto 0;
+    padding: 0 20px 40px; position: relative; z-index: 1;
+  }
+
+  /* QUICK ACTIONS */
+  .quick-actions {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 12px; margin-bottom: 24px;
+  }
+  .qa-btn {
+    background: white;
+    border: none; border-radius: var(--r-md);
+    padding: 20px 12px;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 10px;
+    cursor: pointer; transition: all .25s;
+    box-shadow: var(--shadow-sm);
+  }
+  .qa-btn:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+  .qa-icon {
+    width: 48px; height: 48px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  .qa-icon.blue   { background: #EBF1FF; }
+  .qa-icon.teal   { background: #E0F7F7; }
+  .qa-icon.gold   { background: #FFF9E0; }
+  .qa-icon.green  { background: #E6F9F0; }
+  .qa-label { font-size: 12px; font-weight: 500; color: var(--gray-700); text-align: center; }
+
+  /* CARDS */
+  .cards-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 16px; margin-bottom: 24px;
+  }
+  .card {
+    background: white; border-radius: var(--r-md);
+    padding: 24px; box-shadow: var(--shadow-sm);
+  }
+  .card-title {
+    font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .05em;
+    color: var(--gray-500); margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 24px; font-weight: 700; color: var(--gray-700);
+  }
+  .card-value.positive { color: var(--green); }
+  .card-value.negative { color: var(--red); }
+  .card-sub { font-size: 12px; color: var(--gray-500); margin-top: 4px; }
+
+  /* MOVIMIENTOS */
+  .movimientos-card {
+    background: white; border-radius: var(--r-md);
+    box-shadow: var(--shadow-sm); overflow: hidden;
+    margin-bottom: 24px;
+  }
+  .mv-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--gray-100);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .mv-header h3 { font-size: 16px; font-weight: 600; color: var(--gray-700); }
+  .mv-list { padding: 0; }
+  .mv-item {
+    display: flex; align-items: center; gap: 14px;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--gray-100);
+    transition: background .15s;
+  }
+  .mv-item:last-child { border-bottom: none; }
+  .mv-item:hover { background: var(--gray-50); }
+  .mv-icon {
+    width: 42px; height: 42px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .mv-icon.ingreso  { background: #E6F9F0; }
+  .mv-icon.egreso   { background: #FFF0F0; }
+  .mv-info { flex: 1; min-width: 0; }
+  .mv-detalle { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mv-fecha   { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+  .mv-monto   { font-size: 15px; font-weight: 600; white-space: nowrap; }
+  .mv-monto.ingreso { color: var(--green); }
+  .mv-monto.egreso  { color: var(--red); }
+
+  .empty-state {
+    padding: 40px; text-align: center;
+    color: var(--gray-500); font-size: 14px;
+  }
+  .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+
+  /* ══════════════════════════════════════════
+     MODAL DE TRANSFERENCIA
+  ══════════════════════════════════════════ */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.5);
+    display: none; align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.open { display: flex; animation: fadeIn .2s ease; }
+  .modal {
+    background: white; border-radius: var(--r-lg);
+    width: 100%; max-width: 480px;
+    box-shadow: var(--shadow-lg);
+    animation: slideUp .35s cubic-bezier(.16,1,.3,1);
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal-header {
+    padding: 24px 28px 20px;
+    border-bottom: 1px solid var(--gray-100);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-header h2 { font-size: 20px; font-weight: 700; color: var(--navy); }
+  .modal-close {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: var(--gray-100); border: none;
+    cursor: pointer; font-size: 18px; color: var(--gray-500);
+    display: flex; align-items: center; justify-content: center;
+    transition: background .2s;
+  }
+  .modal-close:hover { background: var(--gray-200); }
+  .modal-body { padding: 24px 28px; }
+  .modal-footer { padding: 0 28px 28px; }
+
+  .cuenta-preview {
+    background: var(--gray-50);
+    border-radius: var(--r-sm); padding: 14px 16px;
+    margin-top: 8px; display: none;
+  }
+  .cuenta-preview.show { display: flex; align-items: center; gap: 10px; }
+  .cuenta-preview .cp-avatar {
+    width: 38px; height: 38px;
+    background: var(--navy); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 15px;
+  }
+  .cuenta-preview .cp-name { font-weight: 600; font-size: 14px; }
+  .cuenta-preview .cp-sub  { font-size: 12px; color: var(--gray-500); }
+
+  .monto-display {
+    font-family: 'Syne', sans-serif;
+    font-size: 36px; font-weight: 800;
+    color: var(--navy); text-align: center;
+    padding: 12px 0 4px;
+  }
+  .monto-prefix { font-size: 18px; vertical-align: super; margin-right: 2px; }
+
+  /* ALERT BANNER */
+  .alert-banner {
+    position: fixed; top: 72px; left: 50%; transform: translateX(-50%);
+    z-index: 500; max-width: 480px; width: calc(100% - 40px);
+    border-radius: var(--r-sm); padding: 14px 18px;
+    display: flex; align-items: flex-start; gap: 12px;
+    box-shadow: var(--shadow-md);
+    animation: slideDown .4s cubic-bezier(.16,1,.3,1);
+    display: none;
+  }
+  .alert-banner.show { display: flex; }
+  @keyframes slideDown {
+    from { opacity:0; transform: translateX(-50%) translateY(-20px); }
+    to   { opacity:1; transform: translateX(-50%) translateY(0); }
+  }
+  .alert-banner.warning { background: #FFFBEB; border: 1px solid #FDE68A; color: #92400E; }
+  .alert-banner.danger  { background: #FFF0F0; border: 1px solid #FECACA; color: #991B1B; }
+  .alert-banner.success { background: #F0FFF6; border: 1px solid #B3F0D0; color: #065F46; }
+  .alert-banner .ab-icon { font-size: 20px; flex-shrink: 0; }
+  .alert-banner .ab-body { flex: 1; }
+  .alert-banner .ab-title { font-weight: 600; font-size: 14px; }
+  .alert-banner .ab-msg   { font-size: 13px; margin-top: 2px; opacity: .85; }
+  .alert-banner .ab-close {
+    background: none; border: none; cursor: pointer;
+    font-size: 18px; opacity: .6; flex-shrink: 0;
+    line-height: 1;
+  }
+
+  /* ESTADO CUENTA BADGE */
+  .estado-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 99px;
+    font-size: 12px; font-weight: 600;
+  }
+  .estado-badge.ACTIVA       { background: #E6F9F0; color: var(--green); }
+  .estado-badge.BLOQUEADA    { background: #FFF0F0; color: var(--red); }
+  .estado-badge.INVESTIGACION{ background: #FFFBEB; color: #92400E; }
+
+  /* RESULT TRANSFERENCIA */
+  .tx-result {
+    text-align: center; padding: 20px 0;
+  }
+  .tx-result .tx-icon {
+    font-size: 56px; margin-bottom: 16px;
+  }
+  .tx-result h3 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  .tx-result p  { font-size: 14px; color: var(--gray-500); max-width: 280px; margin: 0 auto; }
+
+  .btn-secondary {
+    width: 100%; padding: 14px;
+    background: var(--gray-100);
+    color: var(--gray-700);
+    border: none; border-radius: var(--r-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: all .2s; margin-top: 10px;
+  }
+  .btn-secondary:hover { background: var(--gray-200); }
+
+  @media (max-width: 600px) {
+    .quick-actions { grid-template-columns: repeat(2,1fr); }
+    .cards-grid    { grid-template-columns: 1fr; }
+    .hero-saldo    { font-size: 32px; }
+    .auth-card     { padding: 28px 22px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     ALERTA GLOBAL (fraude / notificaciones)
+══════════════════════════════════════════ -->
+<div id="alert-banner" class="alert-banner">
+  <div class="ab-icon" id="ab-icon">⚠️</div>
+  <div class="ab-body">
+    <div class="ab-title" id="ab-title">Alerta</div>
+    <div class="ab-msg"   id="ab-msg"></div>
+  </div>
+  <button class="ab-close" onclick="cerrarAlerta()">✕</button>
+</div>
+
+<!-- ══════════════════════════════════════════
+     PANTALLA LOGIN / REGISTRO
+══════════════════════════════════════════ -->
+<div id="screen-auth" class="screen active">
+  <div class="auth-card">
+    <div class="brand">
+      <div class="brand-icon">🏦</div>
+      <div class="brand-name">La Gran<br><span>Bancolombia</span></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('login')">Ingresar</button>
+      <button class="tab-btn"        onclick="switchTab('registro')">Crear cuenta</button>
+    </div>
+
+    <!-- LOGIN -->
+    <div id="tab-login" class="tab-content active">
+      <div class="form-group">
+        <label>Número de cédula</label>
+        <input type="number" id="login-cedula" placeholder="Ej: 1052345678" maxlength="12">
+      </div>
+      <div class="form-group">
+        <label>PIN (4 dígitos)</label>
+        <div class="pin-row">
+          <input type="password" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]">
+          <input type="password" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]">
+          <input type="password" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]">
+          <input type="password" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]">
+        </div>
+      </div>
+      <button class="btn-primary" id="btn-login" onclick="doLogin()">Ingresar</button>
+      <div id="login-error"   class="msg-error"></div>
+      <div id="login-success" class="msg-success"></div>
+    </div>
+
+    <!-- REGISTRO -->
+    <div id="tab-registro" class="tab-content">
+      <div class="form-group">
+        <label>Nombres *</label>
+        <input type="text" id="reg-nombres" placeholder="Tus nombres">
+      </div>
+      <div class="form-group">
+        <label>Apellidos *</label>
+        <input type="text" id="reg-apellidos" placeholder="Tus apellidos">
+      </div>
+      <div class="form-group">
+        <label>Número de cédula *</label>
+        <input type="number" id="reg-cedula" placeholder="Ej: 1052345678">
+      </div>
+      <div class="form-group">
+        <label>Celular *</label>
+        <input type="tel" id="reg-celular" placeholder="3001234567">
+      </div>
+      <div class="form-group">
+        <label>PIN de 4 dígitos *</label>
+        <div class="pin-row">
+          <input type="password" class="pin-digit-reg" maxlength="1" inputmode="numeric" pattern="[0-9]">
+          <input type="password" class="pin-digit-reg" maxlength="1" inputmode="numeric" pattern="[0-9]">
+          <input type="password" class="pin-digit-reg" maxlength="1" inputmode="numeric" pattern="[0-9]">
+          <input type="password" class="pin-digit-reg" maxlength="1" inputmode="numeric" pattern="[0-9]">
+        </div>
+      </div>
+      <button class="btn-primary" id="btn-registro" onclick="doRegistro()">Crear mi cuenta</button>
+      <div id="reg-error"   class="msg-error"></div>
+      <div id="reg-success" class="msg-success"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     PANTALLA DASHBOARD
+══════════════════════════════════════════ -->
+<div id="screen-dashboard" class="screen">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-icon" style="width:36px;height:36px;border-radius:10px;font-size:16px;background:rgba(255,255,255,.15);">🏦</div>
+      <div class="brand-name" style="color:white;font-size:14px;">La Gran <span>Bancolombia</span></div>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-user">
+        <div class="avatar" id="topbar-avatar">?</div>
+        <span id="topbar-nombre"></span>
+      </div>
+      <button class="btn-logout" onclick="doLogout()">Salir</button>
+    </div>
+  </div>
+
+  <!-- Hero saldo -->
+  <div class="hero-section">
+    <div class="hero-label">Saldo disponible</div>
+    <div class="hero-saldo" id="dash-saldo">$0</div>
+    <div class="hero-cuenta">Cuenta <strong id="dash-cuenta">—</strong> &nbsp;|&nbsp; <span id="dash-estado-badge"></span></div>
+  </div>
+
+  <div class="main-content">
+    <!-- Acciones rápidas -->
+    <div class="quick-actions">
+      <button class="qa-btn" onclick="abrirTransferencia()">
+        <div class="qa-icon blue">💸</div>
+        <span class="qa-label">Transferir</span>
+      </button>
+      <button class="qa-btn" onclick="cargarMovimientos()">
+        <div class="qa-icon teal">📊</div>
+        <span class="qa-label">Movimientos</span>
+      </button>
+      <button class="qa-btn" onclick="actualizarSaldo()">
+        <div class="qa-icon gold">🔄</div>
+        <span class="qa-label">Actualizar</span>
+      </button>
+      <button class="qa-btn" onclick="abrirChatbot()">
+        <div class="qa-icon green">🤖</div>
+        <span class="qa-label">QuindBot</span>
+      </button>
+    </div>
+
+    <!-- Tarjetas info -->
+    <div class="cards-grid">
+      <div class="card">
+        <div class="card-title">💳 Deuda tarjetas</div>
+        <div class="card-value negative" id="dash-deuda">$0</div>
+        <div class="card-sub" id="dash-cupo">Cupo: $0</div>
+      </div>
+      <div class="card">
+        <div class="card-title">📈 Saldo promedio</div>
+        <div class="card-value" id="dash-promedio">$0</div>
+        <div class="card-sub">Últimos 3 meses</div>
+      </div>
+    </div>
+
+    <!-- Movimientos -->
+    <div class="movimientos-card">
+      <div class="mv-header">
+        <h3>Últimos movimientos</h3>
+        <span style="font-size:12px;color:var(--gray-500);" id="mv-fecha-actualizacion"></span>
+      </div>
+      <div id="mv-lista" class="mv-list">
+        <div class="empty-state">
+          <div class="icon">📋</div>
+          <div>Cargando movimientos...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     MODAL TRANSFERENCIA
+══════════════════════════════════════════ -->
+<div id="modal-transferencia" class="modal-overlay">
+  <div class="modal" id="tx-modal-content">
+    <div class="modal-header">
+      <h2>💸 Transferir dinero</h2>
+      <button class="modal-close" onclick="cerrarTransferencia()">✕</button>
+    </div>
+    <div id="tx-step-form">
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Número de cuenta destino (10 dígitos)</label>
+          <input type="number" id="tx-cuenta" placeholder="4271000000"
+                 oninput="buscarCuenta(this.value)" maxlength="10">
+          <div id="tx-cuenta-preview" class="cuenta-preview"></div>
+        </div>
+        <div class="form-group">
+          <label>Monto a transferir</label>
+          <div class="monto-display">
+            <span class="monto-prefix">$</span><span id="monto-txt">0</span>
+          </div>
+          <input type="number" id="tx-monto" placeholder="50000" min="1000"
+                 oninput="actualizarMontoDisplay(this.value)">
+        </div>
+        <div class="form-group">
+          <label>Descripción (opcional)</label>
+          <input type="text" id="tx-detalle" placeholder="Ej: Pago arriendo">
+        </div>
+        <div id="tx-error" class="msg-error"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-primary" id="btn-transferir" onclick="ejecutarTransferencia()">Confirmar transferencia</button>
+        <button class="btn-secondary" onclick="cerrarTransferencia()">Cancelar</button>
+      </div>
+    </div>
+
+    <div id="tx-step-result" style="display:none; padding: 28px;">
+      <div class="tx-result" id="tx-result-content"></div>
+      <button class="btn-primary" onclick="cerrarTransferencia()">Volver al inicio</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// ESTADO GLOBAL
+// ═══════════════════════════════════════════
+let session = null; // { cedula, nombre, numeroCuenta, saldo, ... }
+let alertTimeout = null;
+let buscarTimeout = null;
+
+// ═══════════════════════════════════════════
+// UTILIDADES
+// ═══════════════════════════════════════════
+const fmt = (n) => new Intl.NumberFormat('es-CO', {
+  style: 'currency', currency: 'COP', maximumFractionDigits: 0
+}).format(n || 0);
+
+const fmtFecha = (d) => {
+  const dt = new Date(d);
+  return isNaN(dt) ? d : dt.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+function getPIN(selector) {
+  return Array.from(document.querySelectorAll(selector))
+    .map(i => i.value).join('');
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function showAlert(type, title, msg, autoClose = 5000) {
+  const el = document.getElementById('alert-banner');
+  document.getElementById('ab-icon').textContent  = type === 'danger' ? '🚨' : type === 'success' ? '✅' : '⚠️';
+  document.getElementById('ab-title').textContent = title;
+  document.getElementById('ab-msg').textContent   = msg;
+  el.className = `alert-banner show ${type}`;
+  if (alertTimeout) clearTimeout(alertTimeout);
+  if (autoClose) alertTimeout = setTimeout(cerrarAlerta, autoClose);
+}
+
+function cerrarAlerta() {
+  document.getElementById('alert-banner').classList.remove('show');
+}
+
+function showMsg(id, msg, visible = true) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.style.display = visible ? 'block' : 'none';
+}
+
+// PIN: auto-avanzar entre inputs
+document.addEventListener('input', e => {
+  if (e.target.classList.contains('pin-digit') || e.target.classList.contains('pin-digit-reg')) {
+    if (e.target.value && e.target.nextElementSibling) e.target.nextElementSibling.focus();
+  }
+});
+document.addEventListener('keydown', e => {
+  if ((e.target.classList.contains('pin-digit') || e.target.classList.contains('pin-digit-reg'))
+      && e.key === 'Backspace' && !e.target.value && e.target.previousElementSibling) {
+    e.target.previousElementSibling.focus();
+  }
+});
+
+// ═══════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) =>
+    b.classList.toggle('active', (i === 0 && tab === 'login') || (i === 1 && tab === 'registro'))
+  );
+  document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+  document.getElementById('tab-registro').classList.toggle('active', tab === 'registro');
+}
+
+// ═══════════════════════════════════════════
+// AUTH: LOGIN
+// ═══════════════════════════════════════════
+async function doLogin() {
+  const cedula = document.getElementById('login-cedula').value.trim();
+  const pin    = getPIN('.pin-digit');
+  showMsg('login-error', '', false);
+  showMsg('login-success', '', false);
+
+  if (!cedula) return showMsg('login-error', 'Ingresa tu número de cédula', true);
+  if (pin.length !== 4) return showMsg('login-error', 'Ingresa tu PIN de 4 dígitos', true);
+
+  const btn = document.getElementById('btn-login');
+  btn.classList.add('loading'); btn.textContent = 'Verificando...';
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cedula, pin })
+    });
+    const data = await res.json();
+    if (!res.ok) return showMsg('login-error', data.error || 'Error al ingresar', true);
+
+    session = data.cliente;
+    renderDashboard();
+    showScreen('screen-dashboard');
+    cargarMovimientos();
+
+    if (data.alertaDispositivoNuevo) {
+      setTimeout(() => showAlert('warning', 'Nuevo dispositivo detectado',
+        'Hemos detectado un inicio de sesión desde un dispositivo diferente. Si no fuiste tú, cambia tu PIN inmediatamente.', 8000), 1000);
+    }
+  } catch {
+    showMsg('login-error', 'Error de conexión. Intenta de nuevo.', true);
+  } finally {
+    btn.classList.remove('loading'); btn.textContent = 'Ingresar';
+  }
+}
+
+// ═══════════════════════════════════════════
+// AUTH: REGISTRO
+// ═══════════════════════════════════════════
+async function doRegistro() {
+  const campos = {
+    nombres:   document.getElementById('reg-nombres').value.trim(),
+    apellidos: document.getElementById('reg-apellidos').value.trim(),
+    cedula:    document.getElementById('reg-cedula').value.trim(),
+    celular:   document.getElementById('reg-celular').value.trim(),
+    pin:       getPIN('.pin-digit-reg')
+  };
+  showMsg('reg-error', '', false);
+  showMsg('reg-success', '', false);
+
+  if (!campos.nombres || !campos.apellidos || !campos.cedula || !campos.celular) {
+    return showMsg('reg-error', 'Todos los campos son obligatorios', true);
+  }
+  if (campos.pin.length !== 4) return showMsg('reg-error', 'El PIN debe ser de 4 dígitos', true);
+
+  const btn = document.getElementById('btn-registro');
+  btn.classList.add('loading'); btn.textContent = 'Creando cuenta...';
+
+  try {
+    const res = await fetch('/api/auth/registro', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(campos)
+    });
+    const data = await res.json();
+    if (!res.ok) return showMsg('reg-error', data.error || 'Error al registrar', true);
+
+    showMsg('reg-success',
+      `✅ ¡Cuenta creada! Tu número de cuenta es: ${data.numeroCuenta}. Saldo inicial: $50,000 COP`, true);
+    setTimeout(() => switchTab('login'), 4000);
+  } catch {
+    showMsg('reg-error', 'Error de conexión. Intenta de nuevo.', true);
+  } finally {
+    btn.classList.remove('loading'); btn.textContent = 'Crear mi cuenta';
+  }
+}
+
+// ═══════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════
+function renderDashboard() {
+  if (!session) return;
+  const iniciales = session.nombre.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  document.getElementById('topbar-avatar').textContent = iniciales;
+  document.getElementById('topbar-nombre').textContent = session.nombre.split(' ')[0];
+  document.getElementById('dash-saldo').textContent    = fmt(session.saldo);
+  document.getElementById('dash-cuenta').textContent   = session.numeroCuenta || '—';
+  document.getElementById('dash-deuda').textContent    = fmt(session.deudaTarjetas);
+  document.getElementById('dash-cupo').textContent     = `Cupo: ${fmt(session.cupoTarjetas)}`;
+  document.getElementById('dash-promedio').textContent = fmt(session.saldo);
+
+  const badge = document.getElementById('dash-estado-badge');
+  const est   = session.estado || 'ACTIVA';
+  badge.className  = `estado-badge ${est}`;
+  badge.textContent = est === 'ACTIVA' ? '● Activa' : est === 'BLOQUEADA' ? '● Bloqueada' : '● En investigación';
+}
+
+async function actualizarSaldo() {
+  if (!session) return;
+  try {
+    const res  = await fetch(`/api/saldo/${session.cedula}`);
+    const data = await res.json();
+    if (data.ok) {
+      session.saldo = data.saldo_actual;
+      document.getElementById('dash-saldo').textContent = fmt(session.saldo);
+      showAlert('success', 'Saldo actualizado', fmt(session.saldo), 3000);
+    }
+  } catch {}
+}
+
+// ═══════════════════════════════════════════
+// MOVIMIENTOS
+// ═══════════════════════════════════════════
+async function cargarMovimientos() {
+  if (!session) return;
+  const lista = document.getElementById('mv-lista');
+  lista.innerHTML = `<div class="empty-state"><div class="icon">⏳</div><div>Cargando...</div></div>`;
+
+  try {
+    const res  = await fetch(`/api/movimientos/${session.cedula}`);
+    const data = await res.json();
+    if (!data.ok || !data.movimientos.length) {
+      lista.innerHTML = `<div class="empty-state"><div class="icon">📋</div><div>Sin movimientos registrados</div></div>`;
+      return;
+    }
+
+    lista.innerHTML = data.movimientos.map(mv => {
+      const esIngreso = mv.movimiento > 0;
+      return `
+        <div class="mv-item">
+          <div class="mv-icon ${esIngreso ? 'ingreso' : 'egreso'}">${esIngreso ? '⬆️' : '⬇️'}</div>
+          <div class="mv-info">
+            <div class="mv-detalle">${mv.detalle || 'Movimiento'}</div>
+            <div class="mv-fecha">${fmtFecha(mv.fecha)}</div>
+          </div>
+          <div class="mv-monto ${esIngreso ? 'ingreso' : 'egreso'}">
+            ${esIngreso ? '+' : ''}${fmt(mv.movimiento)}
+          </div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('mv-fecha-actualizacion').textContent =
+      `Actualizado ${new Date().toLocaleTimeString('es-CO', {hour:'2-digit',minute:'2-digit'})}`;
+  } catch {
+    lista.innerHTML = `<div class="empty-state"><div class="icon">❌</div><div>Error cargando movimientos</div></div>`;
+  }
+}
+
+// ═══════════════════════════════════════════
+// TRANSFERENCIA
+// ═══════════════════════════════════════════
+function abrirTransferencia() {
+  if (session?.estado !== 'ACTIVA') {
+    return showAlert('danger', 'Cuenta no disponible',
+      'Tu cuenta no está activa. Comunícate con servicio al cliente.');
+  }
+  document.getElementById('tx-step-form').style.display = 'block';
+  document.getElementById('tx-step-result').style.display = 'none';
+  document.getElementById('tx-cuenta').value = '';
+  document.getElementById('tx-monto').value  = '';
+  document.getElementById('tx-detalle').value = '';
+  document.getElementById('monto-txt').textContent = '0';
+  document.getElementById('tx-cuenta-preview').className = 'cuenta-preview';
+  document.getElementById('tx-cuenta-preview').innerHTML = '';
+  showMsg('tx-error', '', false);
+  document.getElementById('modal-transferencia').classList.add('open');
+}
+
+function cerrarTransferencia() {
+  document.getElementById('modal-transferencia').classList.remove('open');
+  actualizarSaldo();
+  cargarMovimientos();
+}
+
+function actualizarMontoDisplay(val) {
+  document.getElementById('monto-txt').textContent = val
+    ? new Intl.NumberFormat('es-CO').format(parseInt(val) || 0) : '0';
+}
+
+function buscarCuenta(val) {
+  if (buscarTimeout) clearTimeout(buscarTimeout);
+  const preview = document.getElementById('tx-cuenta-preview');
+  if (val.length !== 10) { preview.className = 'cuenta-preview'; return; }
+
+  buscarTimeout = setTimeout(async () => {
+    try {
+      const res  = await fetch(`/api/buscar-cuenta/${val}`);
+      const data = await res.json();
+      if (data.ok) {
+        const iniciales = data.nombre.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+        preview.className = 'cuenta-preview show';
+        preview.innerHTML = `
+          <div class="cp-avatar">${iniciales}</div>
+          <div><div class="cp-name">${data.nombre}</div>
+          <div class="cp-sub">Cuenta verificada ✓</div></div>`;
+      } else {
+        preview.className = 'cuenta-preview show';
+        preview.style.background = '#FFF0F0';
+        preview.innerHTML = `<div style="color:var(--red);font-size:14px;">❌ Cuenta no encontrada</div>`;
+      }
+    } catch {}
+  }, 600);
+}
+
+async function ejecutarTransferencia() {
+  const cuentaDestino = document.getElementById('tx-cuenta').value.trim();
+  const monto         = parseFloat(document.getElementById('tx-monto').value);
+  const detalle       = document.getElementById('tx-detalle').value.trim();
+  showMsg('tx-error', '', false);
+
+  if (!cuentaDestino || cuentaDestino.length !== 10)
+    return showMsg('tx-error', 'Ingresa un número de cuenta válido (10 dígitos)', true);
+  if (!monto || monto < 1000)
+    return showMsg('tx-error', 'El monto mínimo es $1,000 COP', true);
+  if (cuentaDestino === session.numeroCuenta)
+    return showMsg('tx-error', 'No puedes transferirte a ti mismo', true);
+
+  const btn = document.getElementById('btn-transferir');
+  btn.classList.add('loading'); btn.textContent = 'Procesando...';
+
+  try {
+    const res  = await fetch('/api/transferencia', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cedulaOrigen: session.cedula, cuentaDestino, monto, detalle })
+    });
+    const data = await res.json();
+
+    document.getElementById('tx-step-form').style.display  = 'none';
+    document.getElementById('tx-step-result').style.display = 'block';
+
+    if (data.ok) {
+      session.saldo -= monto;
+      document.getElementById('tx-result-content').innerHTML = `
+        <div class="tx-icon">✅</div>
+        <h3 style="color:var(--green)">¡Transferencia exitosa!</h3>
+        <p>Se enviaron <strong>${fmt(monto)}</strong> a <strong>${data.nombreDestino}</strong>.</p>
+        <p style="margin-top:8px;font-size:12px;color:var(--gray-500);">ID: ${data.idTransferencia?.slice(0,8).toUpperCase()}</p>`;
+    } else if (data.estado === 'INVESTIGACION') {
+      session.estado = 'INVESTIGACION';
+      document.getElementById('tx-result-content').innerHTML = `
+        <div class="tx-icon">🔒</div>
+        <h3 style="color:#92400E">Transacción bajo investigación</h3>
+        <p>${data.mensaje}</p>
+        <p style="margin-top:12px;color:var(--red);font-size:13px;">Tu cuenta ha sido bloqueada preventivamente. Llama a la línea 018000-BANCO.</p>`;
+      showAlert('danger', 'Cuenta bloqueada', data.mensaje, 0);
+    } else {
+      document.getElementById('tx-result-content').innerHTML = `
+        <div class="tx-icon">❌</div>
+        <h3 style="color:var(--red)">Transferencia fallida</h3>
+        <p>${data.mensaje || data.error || 'Error desconocido'}</p>`;
+    }
+
+    renderDashboard();
+  } catch {
+    showMsg('tx-error', 'Error de conexión. Intenta de nuevo.', true);
+  } finally {
+    btn.classList.remove('loading'); btn.textContent = 'Confirmar transferencia';
+  }
+}
+
+// ═══════════════════════════════════════════
+// CHATBOT (abre el bot de WhatsApp si hay número)
+// ═══════════════════════════════════════════
+function abrirChatbot() {
+  window.open('https://wa.me/573003094183?text=Hola+QuindBot', '_blank');
+}
+
+// ═══════════════════════════════════════════
+// LOGOUT
+// ═══════════════════════════════════════════
+function doLogout() {
+  session = null;
+  document.querySelectorAll('.pin-digit, .pin-digit-reg').forEach(i => i.value = '');
+  document.getElementById('login-cedula').value = '';
+  showScreen('screen-auth');
+}
+
+// ═══════════════════════════════════════════
+// ENTER para login
+// ═══════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const activeTab = document.querySelector('.tab-content.active');
+    if (activeTab?.id === 'tab-login') doLogin();
+    if (activeTab?.id === 'tab-registro') doRegistro();
+  }
+});
+</script>
+</body>
+</html>
