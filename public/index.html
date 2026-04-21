@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>La Gran Bancolombia</title>
+<title>Banco QUIND</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <style>
@@ -56,8 +56,6 @@
     position: relative;
     overflow: hidden;
   }
-
-  /* Fondo decorativo */
   #screen-auth::before {
     content: '';
     position: absolute;
@@ -128,11 +126,7 @@
     cursor: pointer; transition: all .25s;
     background: transparent; color: var(--gray-500);
   }
-  .tab-btn.active {
-    background: var(--navy);
-    color: var(--white);
-    box-shadow: var(--shadow-sm);
-  }
+  .tab-btn.active { background: var(--navy); color: var(--white); box-shadow: var(--shadow-sm); }
 
   .tab-content { display: none; }
   .tab-content.active { display: block; animation: fadeIn .3s ease; }
@@ -140,11 +134,10 @@
 
   .form-group { margin-bottom: 16px; }
   .form-group label {
-    display: block;
-    font-size: 13px; font-weight: 500;
+    display: block; font-size: 13px; font-weight: 500;
     color: var(--gray-500); margin-bottom: 6px;
   }
-  .form-group input {
+  .form-group input, .form-group select {
     width: 100%; padding: 13px 16px;
     border: 2px solid var(--gray-200);
     border-radius: var(--r-sm);
@@ -154,31 +147,26 @@
     transition: border-color .2s, box-shadow .2s;
     outline: none;
   }
-  .form-group input:focus {
+  .form-group input:focus, .form-group select:focus {
     border-color: var(--navy);
     box-shadow: 0 0 0 4px rgba(0,48,135,.1);
   }
   .form-group input.error { border-color: var(--red); }
 
-  .pin-row {
-    display: flex; gap: 10px;
-  }
+  .pin-row { display: flex; gap: 10px; }
   .pin-row input {
     flex: 1; text-align: center; font-size: 22px;
-    padding: 12px 0; letter-spacing: 4px;
-    font-weight: 600;
+    padding: 12px 0; letter-spacing: 4px; font-weight: 600;
   }
 
   .btn-primary {
     width: 100%; padding: 15px;
-    background: var(--navy);
-    color: var(--white);
+    background: var(--navy); color: var(--white);
     border: none; border-radius: var(--r-sm);
     font-family: 'DM Sans', sans-serif;
     font-size: 16px; font-weight: 600;
     cursor: pointer; transition: all .2s;
-    margin-top: 8px; position: relative;
-    overflow: hidden;
+    margin-top: 8px; position: relative; overflow: hidden;
   }
   .btn-primary:hover { background: var(--navy-lt); transform: translateY(-1px); box-shadow: var(--shadow-md); }
   .btn-primary:active { transform: translateY(0); }
@@ -187,38 +175,22 @@
     content: '';
     position: absolute; right: 18px; top: 50%;
     width: 16px; height: 16px;
-    border: 2px solid rgba(255,255,255,.4);
-    border-top-color: white;
+    border: 2px solid rgba(255,255,255,.4); border-top-color: white;
     border-radius: 50%; margin-top: -8px;
     animation: spin .6s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  .msg-error {
-    background: #FFF0F0; color: var(--red);
-    border: 1px solid #FFCCCC;
-    border-radius: var(--r-sm);
-    padding: 12px 14px; font-size: 14px;
-    margin-top: 14px; display: none;
-  }
-  .msg-success {
-    background: #F0FFF6; color: var(--green);
-    border: 1px solid #B3F0D0;
-    border-radius: var(--r-sm);
-    padding: 12px 14px; font-size: 14px;
-    margin-top: 14px; display: none;
-  }
+  .msg-error   { background: #FFF0F0; color: var(--red);   border: 1px solid #FFCCCC; border-radius: var(--r-sm); padding: 12px 14px; font-size: 14px; margin-top: 14px; display: none; }
+  .msg-success { background: #F0FFF6; color: var(--green); border: 1px solid #B3F0D0; border-radius: var(--r-sm); padding: 12px 14px; font-size: 14px; margin-top: 14px; display: none; }
 
   /* ══════════════════════════════════════════
      PANTALLA 2: DASHBOARD
   ══════════════════════════════════════════ */
   #screen-dashboard { background: var(--gray-50); }
 
-  /* TOPBAR */
   .topbar {
-    background: var(--navy);
-    padding: 0 24px;
-    height: 64px;
+    background: var(--navy); padding: 0 24px; height: 64px;
     display: flex; align-items: center; justify-content: space-between;
     position: sticky; top: 0; z-index: 100;
     box-shadow: 0 2px 20px rgba(0,0,0,.2);
@@ -226,139 +198,61 @@
   .topbar .brand-name { color: var(--white); font-size: 16px; }
   .topbar .brand-name span { color: var(--gold); }
   .topbar-right { display: flex; align-items: center; gap: 16px; }
-  .topbar-user {
-    font-size: 14px; color: rgba(255,255,255,.8);
-    display: flex; align-items: center; gap: 8px;
-  }
-  .avatar {
-    width: 36px; height: 36px;
-    background: var(--gold);
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 15px; color: var(--navy);
-  }
-  .btn-logout {
-    background: rgba(255,255,255,.12);
-    border: 1px solid rgba(255,255,255,.2);
-    color: white; padding: 7px 14px;
-    border-radius: 8px; cursor: pointer;
-    font-size: 13px; font-family: 'DM Sans', sans-serif;
-    transition: background .2s;
-  }
+  .topbar-user { font-size: 14px; color: rgba(255,255,255,.8); display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 36px; height: 36px; background: var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; color: var(--navy); }
+  .btn-logout { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2); color: white; padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-family: 'DM Sans', sans-serif; transition: background .2s; }
   .btn-logout:hover { background: rgba(255,255,255,.2); }
 
-  /* HERO CARD */
   .hero-section {
     background: linear-gradient(135deg, var(--navy) 0%, var(--navy-lt) 100%);
-    padding: 32px 24px 80px;
-    position: relative; overflow: hidden;
+    padding: 32px 24px 80px; position: relative; overflow: hidden;
   }
   .hero-section::after {
-    content: '';
-    position: absolute;
-    width: 300px; height: 300px;
+    content: ''; position: absolute; width: 300px; height: 300px;
     background: radial-gradient(circle, rgba(255,209,0,.2) 0%, transparent 70%);
-    top: -80px; right: -80px;
-    border-radius: 50%;
+    top: -80px; right: -80px; border-radius: 50%;
   }
-  .hero-label {
-    font-size: 13px; color: rgba(255,255,255,.65);
-    font-weight: 500; margin-bottom: 6px;
-  }
-  .hero-saldo {
-    font-family: 'Syne', sans-serif;
-    font-size: 42px; font-weight: 800;
-    color: white; line-height: 1;
-    margin-bottom: 4px;
-  }
-  .hero-cuenta {
-    font-size: 13px; color: rgba(255,255,255,.55);
-  }
+  .hero-label  { font-size: 13px; color: rgba(255,255,255,.65); font-weight: 500; margin-bottom: 6px; }
+  .hero-saldo  { font-family: 'Syne', sans-serif; font-size: 42px; font-weight: 800; color: white; line-height: 1; margin-bottom: 4px; }
+  .hero-cuenta { font-size: 13px; color: rgba(255,255,255,.55); }
   .hero-cuenta strong { color: rgba(255,255,255,.85); }
 
-  .main-content {
-    max-width: 900px; margin: -48px auto 0;
-    padding: 0 20px 40px; position: relative; z-index: 1;
-  }
+  .main-content { max-width: 900px; margin: -48px auto 0; padding: 0 20px 40px; position: relative; z-index: 1; }
 
-  /* QUICK ACTIONS */
-  .quick-actions {
-    display: grid; grid-template-columns: repeat(4, 1fr);
-    gap: 12px; margin-bottom: 24px;
-  }
+  .quick-actions { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }
   .qa-btn {
-    background: white;
-    border: none; border-radius: var(--r-md);
-    padding: 20px 12px;
-    display: flex; flex-direction: column;
-    align-items: center; gap: 10px;
-    cursor: pointer; transition: all .25s;
+    background: white; border: none; border-radius: var(--r-md);
+    padding: 18px 10px; display: flex; flex-direction: column;
+    align-items: center; gap: 8px; cursor: pointer; transition: all .25s;
     box-shadow: var(--shadow-sm);
   }
   .qa-btn:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
-  .qa-icon {
-    width: 48px; height: 48px;
-    border-radius: 14px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 22px;
-  }
+  .qa-icon { width: 44px; height: 44px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
   .qa-icon.blue   { background: #EBF1FF; }
   .qa-icon.teal   { background: #E0F7F7; }
   .qa-icon.gold   { background: #FFF9E0; }
   .qa-icon.green  { background: #E6F9F0; }
-  .qa-label { font-size: 12px; font-weight: 500; color: var(--gray-700); text-align: center; }
+  .qa-icon.purple { background: #F3E8FF; }
+  .qa-label { font-size: 11px; font-weight: 500; color: var(--gray-700); text-align: center; }
 
-  /* CARDS */
-  .cards-grid {
-    display: grid; grid-template-columns: 1fr 1fr;
-    gap: 16px; margin-bottom: 24px;
-  }
-  .card {
-    background: white; border-radius: var(--r-md);
-    padding: 24px; box-shadow: var(--shadow-sm);
-  }
-  .card-title {
-    font-size: 12px; font-weight: 600;
-    text-transform: uppercase; letter-spacing: .05em;
-    color: var(--gray-500); margin-bottom: 14px;
-    display: flex; align-items: center; gap: 8px;
-  }
-  .card-value {
-    font-family: 'Syne', sans-serif;
-    font-size: 24px; font-weight: 700; color: var(--gray-700);
-  }
+  .cards-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .card { background: white; border-radius: var(--r-md); padding: 24px; box-shadow: var(--shadow-sm); }
+  .card-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--gray-500); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .card-value { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 700; color: var(--gray-700); }
   .card-value.positive { color: var(--green); }
   .card-value.negative { color: var(--red); }
   .card-sub { font-size: 12px; color: var(--gray-500); margin-top: 4px; }
 
-  /* MOVIMIENTOS */
-  .movimientos-card {
-    background: white; border-radius: var(--r-md);
-    box-shadow: var(--shadow-sm); overflow: hidden;
-    margin-bottom: 24px;
-  }
-  .mv-header {
-    padding: 20px 24px 16px;
-    border-bottom: 1px solid var(--gray-100);
-    display: flex; justify-content: space-between; align-items: center;
-  }
+  .movimientos-card { background: white; border-radius: var(--r-md); box-shadow: var(--shadow-sm); overflow: hidden; margin-bottom: 24px; }
+  .mv-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--gray-100); display: flex; justify-content: space-between; align-items: center; }
   .mv-header h3 { font-size: 16px; font-weight: 600; color: var(--gray-700); }
   .mv-list { padding: 0; }
-  .mv-item {
-    display: flex; align-items: center; gap: 14px;
-    padding: 16px 24px;
-    border-bottom: 1px solid var(--gray-100);
-    transition: background .15s;
-  }
+  .mv-item { display: flex; align-items: center; gap: 14px; padding: 16px 24px; border-bottom: 1px solid var(--gray-100); transition: background .15s; }
   .mv-item:last-child { border-bottom: none; }
   .mv-item:hover { background: var(--gray-50); }
-  .mv-icon {
-    width: 42px; height: 42px; border-radius: 12px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 18px; flex-shrink: 0;
-  }
-  .mv-icon.ingreso  { background: #E6F9F0; }
-  .mv-icon.egreso   { background: #FFF0F0; }
+  .mv-icon { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .mv-icon.ingreso { background: #E6F9F0; }
+  .mv-icon.egreso  { background: #FFF0F0; }
   .mv-info { flex: 1; min-width: 0; }
   .mv-detalle { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mv-fecha   { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
@@ -366,69 +260,28 @@
   .mv-monto.ingreso { color: var(--green); }
   .mv-monto.egreso  { color: var(--red); }
 
-  .empty-state {
-    padding: 40px; text-align: center;
-    color: var(--gray-500); font-size: 14px;
-  }
+  .empty-state { padding: 40px; text-align: center; color: var(--gray-500); font-size: 14px; }
   .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
 
-  /* ══════════════════════════════════════════
-     MODAL DE TRANSFERENCIA
-  ══════════════════════════════════════════ */
-  .modal-overlay {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,.5);
-    display: none; align-items: center; justify-content: center;
-    z-index: 1000; padding: 20px;
-    backdrop-filter: blur(4px);
-  }
+  /* MODAL */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px; backdrop-filter: blur(4px); }
   .modal-overlay.open { display: flex; animation: fadeIn .2s ease; }
-  .modal {
-    background: white; border-radius: var(--r-lg);
-    width: 100%; max-width: 480px;
-    box-shadow: var(--shadow-lg);
-    animation: slideUp .35s cubic-bezier(.16,1,.3,1);
-    max-height: 90vh; overflow-y: auto;
-  }
-  .modal-header {
-    padding: 24px 28px 20px;
-    border-bottom: 1px solid var(--gray-100);
-    display: flex; align-items: center; justify-content: space-between;
-  }
+  .modal { background: white; border-radius: var(--r-lg); width: 100%; max-width: 480px; box-shadow: var(--shadow-lg); animation: slideUp .35s cubic-bezier(.16,1,.3,1); max-height: 90vh; overflow-y: auto; }
+  .modal-header { padding: 24px 28px 20px; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; justify-content: space-between; }
   .modal-header h2 { font-size: 20px; font-weight: 700; color: var(--navy); }
-  .modal-close {
-    width: 36px; height: 36px; border-radius: 10px;
-    background: var(--gray-100); border: none;
-    cursor: pointer; font-size: 18px; color: var(--gray-500);
-    display: flex; align-items: center; justify-content: center;
-    transition: background .2s;
-  }
+  .modal-close { width: 36px; height: 36px; border-radius: 10px; background: var(--gray-100); border: none; cursor: pointer; font-size: 18px; color: var(--gray-500); display: flex; align-items: center; justify-content: center; transition: background .2s; }
   .modal-close:hover { background: var(--gray-200); }
   .modal-body { padding: 24px 28px; }
   .modal-footer { padding: 0 28px 28px; }
 
-  .cuenta-preview {
-    background: var(--gray-50);
-    border-radius: var(--r-sm); padding: 14px 16px;
-    margin-top: 8px; display: none;
-  }
+  .cuenta-preview { background: var(--gray-50); border-radius: var(--r-sm); padding: 14px 16px; margin-top: 8px; display: none; }
   .cuenta-preview.show { display: flex; align-items: center; gap: 10px; }
-  .cuenta-preview .cp-avatar {
-    width: 38px; height: 38px;
-    background: var(--navy); border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    color: white; font-weight: 700; font-size: 15px;
-  }
+  .cuenta-preview .cp-avatar { width: 38px; height: 38px; background: var(--navy); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 15px; }
   .cuenta-preview .cp-name { font-weight: 600; font-size: 14px; }
   .cuenta-preview .cp-sub  { font-size: 12px; color: var(--gray-500); }
 
-  .monto-display {
-    font-family: 'Syne', sans-serif;
-    font-size: 36px; font-weight: 800;
-    color: var(--navy); text-align: center;
-    padding: 12px 0 4px;
-  }
-  .monto-prefix { font-size: 18px; vertical-align: super; margin-right: 2px; }
+  .monto-display { font-family: 'Syne', sans-serif; font-size: 36px; font-weight: 800; color: var(--navy); text-align: center; padding: 12px 0 4px; }
+  .monto-prefix  { font-size: 18px; vertical-align: super; margin-right: 2px; }
 
   /* ALERT BANNER */
   .alert-banner {
@@ -448,60 +301,68 @@
   .alert-banner.warning { background: #FFFBEB; border: 1px solid #FDE68A; color: #92400E; }
   .alert-banner.danger  { background: #FFF0F0; border: 1px solid #FECACA; color: #991B1B; }
   .alert-banner.success { background: #F0FFF6; border: 1px solid #B3F0D0; color: #065F46; }
-  .alert-banner .ab-icon { font-size: 20px; flex-shrink: 0; }
-  .alert-banner .ab-body { flex: 1; }
+  .alert-banner .ab-icon  { font-size: 20px; flex-shrink: 0; }
+  .alert-banner .ab-body  { flex: 1; }
   .alert-banner .ab-title { font-weight: 600; font-size: 14px; }
   .alert-banner .ab-msg   { font-size: 13px; margin-top: 2px; opacity: .85; }
-  .alert-banner .ab-close {
-    background: none; border: none; cursor: pointer;
-    font-size: 18px; opacity: .6; flex-shrink: 0;
-    line-height: 1;
-  }
+  .alert-banner .ab-close { background: none; border: none; cursor: pointer; font-size: 18px; opacity: .6; flex-shrink: 0; line-height: 1; }
 
-  /* ESTADO CUENTA BADGE */
-  .estado-badge {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 4px 12px; border-radius: 99px;
-    font-size: 12px; font-weight: 600;
-  }
-  .estado-badge.ACTIVA       { background: #E6F9F0; color: var(--green); }
-  .estado-badge.BLOQUEADA    { background: #FFF0F0; color: var(--red); }
-  .estado-badge.INVESTIGACION{ background: #FFFBEB; color: #92400E; }
+  /* ESTADO BADGE */
+  .estado-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+  .estado-badge.ACTIVA        { background: #E6F9F0; color: var(--green); }
+  .estado-badge.BLOQUEADA     { background: #FFF0F0; color: var(--red); }
+  .estado-badge.INVESTIGACION { background: #FFFBEB; color: #92400E; }
 
-  /* RESULT TRANSFERENCIA */
-  .tx-result {
-    text-align: center; padding: 20px 0;
-  }
-  .tx-result .tx-icon {
-    font-size: 56px; margin-bottom: 16px;
-  }
+  /* TX RESULT */
+  .tx-result { text-align: center; padding: 20px 0; }
+  .tx-result .tx-icon { font-size: 56px; margin-bottom: 16px; }
   .tx-result h3 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
   .tx-result p  { font-size: 14px; color: var(--gray-500); max-width: 280px; margin: 0 auto; }
 
-  .btn-secondary {
-    width: 100%; padding: 14px;
-    background: var(--gray-100);
-    color: var(--gray-700);
-    border: none; border-radius: var(--r-sm);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 15px; font-weight: 600;
-    cursor: pointer; transition: all .2s; margin-top: 10px;
-  }
+  .btn-secondary { width: 100%; padding: 14px; background: var(--gray-100); color: var(--gray-700); border: none; border-radius: var(--r-sm); font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; transition: all .2s; margin-top: 10px; }
   .btn-secondary:hover { background: var(--gray-200); }
 
-  @media (max-width: 600px) {
-    .quick-actions { grid-template-columns: repeat(2,1fr); }
-    .cards-grid    { grid-template-columns: 1fr; }
-    .hero-saldo    { font-size: 32px; }
-    .auth-card     { padding: 28px 22px; }
+  /* ══ PRODUCTOS ══════════════════════════════════════════════ */
+  .productos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 12px; }
+  .producto-card {
+    border: 2px solid var(--gray-200); border-radius: var(--r-md);
+    padding: 20px 16px; cursor: pointer; transition: all .25s;
+    text-align: center; background: white;
+  }
+  .producto-card:hover { border-color: var(--navy); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+  .producto-card.selected { border-color: var(--navy); background: #EBF1FF; }
+  .producto-card .prod-icon { font-size: 36px; margin-bottom: 10px; }
+  .producto-card .prod-name { font-size: 14px; font-weight: 600; color: var(--gray-700); margin-bottom: 4px; }
+  .producto-card .prod-desc { font-size: 12px; color: var(--gray-500); line-height: 1.4; }
+
+  /* Resultado producto */
+  .prod-result { border-radius: var(--r-md); padding: 20px; margin-top: 16px; }
+  .prod-result.aprobado { background: #F0FFF6; border: 1px solid #B3F0D0; }
+  .prod-result.denegado { background: #FFF0F0; border: 1px solid #FECACA; }
+  .prod-result .pr-icon  { font-size: 42px; text-align: center; margin-bottom: 10px; }
+  .prod-result .pr-title { font-size: 18px; font-weight: 700; text-align: center; margin-bottom: 8px; }
+  .prod-result.aprobado .pr-title { color: var(--green); }
+  .prod-result.denegado .pr-title { color: var(--red); }
+  .prod-result .pr-cupo  { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800; text-align: center; color: var(--navy); margin: 8px 0; }
+  .prod-result .pr-motivo{ font-size: 13px; color: var(--gray-500); text-align: center; }
+  .prod-result .pr-badges{ display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+  .pr-badge { padding: 4px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; background: var(--gray-100); color: var(--gray-700); }
+
+  @media (max-width: 700px) {
+    .quick-actions   { grid-template-columns: repeat(3, 1fr); }
+    .cards-grid      { grid-template-columns: 1fr; }
+    .productos-grid  { grid-template-columns: 1fr; }
+    .hero-saldo      { font-size: 32px; }
+    .auth-card       { padding: 28px 22px; }
+  }
+  @media (max-width: 480px) {
+    .quick-actions { grid-template-columns: repeat(2, 1fr); }
   }
 </style>
 </head>
 <body>
 
-<!-- ══════════════════════════════════════════
-     ALERTA GLOBAL (fraude / notificaciones)
-══════════════════════════════════════════ -->
+<!-- ALERTA GLOBAL -->
 <div id="alert-banner" class="alert-banner">
   <div class="ab-icon" id="ab-icon">⚠️</div>
   <div class="ab-body">
@@ -518,7 +379,7 @@
   <div class="auth-card">
     <div class="brand">
       <div class="brand-icon">🏦</div>
-      <div class="brand-name">La Gran<br><span>Bancolombia</span></div>
+      <div class="brand-name">Banco<br><span>QUIND</span></div>
     </div>
 
     <div class="tabs">
@@ -589,7 +450,7 @@
   <div class="topbar">
     <div class="brand">
       <div class="brand-icon" style="width:36px;height:36px;border-radius:10px;font-size:16px;background:rgba(255,255,255,.15);">🏦</div>
-      <div class="brand-name" style="color:white;font-size:14px;">La Gran <span>Bancolombia</span></div>
+      <div class="brand-name" style="color:white;font-size:15px;">Banco <span>QUIND</span></div>
     </div>
     <div class="topbar-right">
       <div class="topbar-user">
@@ -608,7 +469,7 @@
   </div>
 
   <div class="main-content">
-    <!-- Acciones rápidas -->
+    <!-- Acciones rápidas — 5 botones -->
     <div class="quick-actions">
       <button class="qa-btn" onclick="abrirTransferencia()">
         <div class="qa-icon blue">💸</div>
@@ -621,6 +482,10 @@
       <button class="qa-btn" onclick="actualizarSaldo()">
         <div class="qa-icon gold">🔄</div>
         <span class="qa-label">Actualizar</span>
+      </button>
+      <button class="qa-btn" onclick="abrirProductos()">
+        <div class="qa-icon purple">🎁</div>
+        <span class="qa-label">Productos</span>
       </button>
       <button class="qa-btn" onclick="abrirChatbot()">
         <div class="qa-icon green">🤖</div>
@@ -694,10 +559,56 @@
         <button class="btn-secondary" onclick="cerrarTransferencia()">Cancelar</button>
       </div>
     </div>
-
     <div id="tx-step-result" style="display:none; padding: 28px;">
       <div class="tx-result" id="tx-result-content"></div>
       <button class="btn-primary" onclick="cerrarTransferencia()">Volver al inicio</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     MODAL SOLICITAR PRODUCTO
+══════════════════════════════════════════ -->
+<div id="modal-productos" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>🎁 Solicitar producto</h2>
+      <button class="modal-close" onclick="cerrarProductos()">✕</button>
+    </div>
+    <div id="prod-step-selector">
+      <div class="modal-body">
+        <p style="font-size:14px;color:var(--gray-500);margin-bottom:20px;">
+          Selecciona el producto que deseas solicitar. Evaluaremos tu perfil en tiempo real.
+        </p>
+        <div class="productos-grid">
+          <div class="producto-card" id="pc-tarjeta" onclick="seleccionarProducto('TARJETA_CREDITO')">
+            <div class="prod-icon">💳</div>
+            <div class="prod-name">Tarjeta de Crédito</div>
+            <div class="prod-desc">Cupo rotativo según tu perfil financiero</div>
+          </div>
+          <div class="producto-card" id="pc-consumo" onclick="seleccionarProducto('CREDITO_CONSUMO')">
+            <div class="prod-icon">💰</div>
+            <div class="prod-name">Crédito de Consumo</div>
+            <div class="prod-desc">Hasta 36 meses para tus proyectos</div>
+          </div>
+          <div class="producto-card" id="pc-vivienda" onclick="seleccionarProducto('CREDITO_VIVIENDA')">
+            <div class="prod-icon">🏠</div>
+            <div class="prod-name">Crédito de Vivienda</div>
+            <div class="prod-desc">Hasta 15 años para tu hogar</div>
+          </div>
+        </div>
+        <div id="prod-error" class="msg-error"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-primary" id="btn-solicitar" onclick="ejecutarSolicitudProducto()">Evaluar mi perfil</button>
+        <button class="btn-secondary" onclick="cerrarProductos()">Cancelar</button>
+      </div>
+    </div>
+
+    <div id="prod-step-result" style="display:none; padding: 28px 28px 32px;">
+      <div id="prod-result-content"></div>
+      <button class="btn-primary"   style="margin-top:16px;" onclick="cerrarProductos()">Volver al inicio</button>
+      <button class="btn-secondary" onclick="resetProductos()">Solicitar otro producto</button>
     </div>
   </div>
 </div>
@@ -706,9 +617,10 @@
 // ═══════════════════════════════════════════
 // ESTADO GLOBAL
 // ═══════════════════════════════════════════
-let session = null; // { cedula, nombre, numeroCuenta, saldo, ... }
-let alertTimeout = null;
+let session = null;
+let alertTimeout  = null;
 let buscarTimeout = null;
+let productoSeleccionado = null;
 
 // ═══════════════════════════════════════════
 // UTILIDADES
@@ -723,15 +635,12 @@ const fmtFecha = (d) => {
 };
 
 function getPIN(selector) {
-  return Array.from(document.querySelectorAll(selector))
-    .map(i => i.value).join('');
+  return Array.from(document.querySelectorAll(selector)).map(i => i.value).join('');
 }
-
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
-
 function showAlert(type, title, msg, autoClose = 5000) {
   const el = document.getElementById('alert-banner');
   document.getElementById('ab-icon').textContent  = type === 'danger' ? '🚨' : type === 'success' ? '✅' : '⚠️';
@@ -741,17 +650,13 @@ function showAlert(type, title, msg, autoClose = 5000) {
   if (alertTimeout) clearTimeout(alertTimeout);
   if (autoClose) alertTimeout = setTimeout(cerrarAlerta, autoClose);
 }
-
-function cerrarAlerta() {
-  document.getElementById('alert-banner').classList.remove('show');
-}
-
+function cerrarAlerta() { document.getElementById('alert-banner').classList.remove('show'); }
 function showMsg(id, msg, visible = true) {
   const el = document.getElementById(id);
   el.textContent = msg; el.style.display = visible ? 'block' : 'none';
 }
 
-// PIN: auto-avanzar entre inputs
+// PIN: auto-avanzar
 document.addEventListener('input', e => {
   if (e.target.classList.contains('pin-digit') || e.target.classList.contains('pin-digit-reg')) {
     if (e.target.value && e.target.nextElementSibling) e.target.nextElementSibling.focus();
@@ -768,7 +673,7 @@ document.addEventListener('keydown', e => {
 // TABS
 // ═══════════════════════════════════════════
 function switchTab(tab) {
-  document.querySelectorAll('.tab-btn').forEach((b,i) =>
+  document.querySelectorAll('.tab-btn').forEach((b, i) =>
     b.classList.toggle('active', (i === 0 && tab === 'login') || (i === 1 && tab === 'registro'))
   );
   document.getElementById('tab-login').classList.toggle('active', tab === 'login');
@@ -781,38 +686,29 @@ function switchTab(tab) {
 async function doLogin() {
   const cedula = document.getElementById('login-cedula').value.trim();
   const pin    = getPIN('.pin-digit');
-  showMsg('login-error', '', false);
-  showMsg('login-success', '', false);
-
+  showMsg('login-error', '', false); showMsg('login-success', '', false);
   if (!cedula) return showMsg('login-error', 'Ingresa tu número de cédula', true);
   if (pin.length !== 4) return showMsg('login-error', 'Ingresa tu PIN de 4 dígitos', true);
 
   const btn = document.getElementById('btn-login');
   btn.classList.add('loading'); btn.textContent = 'Verificando...';
-
   try {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const res  = await fetch('/api/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cedula, pin })
     });
     const data = await res.json();
     if (!res.ok) return showMsg('login-error', data.error || 'Error al ingresar', true);
-
     session = data.cliente;
     renderDashboard();
     showScreen('screen-dashboard');
     cargarMovimientos();
-
     if (data.alertaDispositivoNuevo) {
       setTimeout(() => showAlert('warning', 'Nuevo dispositivo detectado',
-        'Hemos detectado un inicio de sesión desde un dispositivo diferente. Si no fuiste tú, cambia tu PIN inmediatamente.', 8000), 1000);
+        'Detectamos un acceso desde un dispositivo diferente. Si no fuiste tú, cambia tu PIN.', 8000), 1000);
     }
-  } catch {
-    showMsg('login-error', 'Error de conexión. Intenta de nuevo.', true);
-  } finally {
-    btn.classList.remove('loading'); btn.textContent = 'Ingresar';
-  }
+  } catch { showMsg('login-error', 'Error de conexión. Intenta de nuevo.', true);
+  } finally { btn.classList.remove('loading'); btn.textContent = 'Ingresar'; }
 }
 
 // ═══════════════════════════════════════════
@@ -826,33 +722,25 @@ async function doRegistro() {
     celular:   document.getElementById('reg-celular').value.trim(),
     pin:       getPIN('.pin-digit-reg')
   };
-  showMsg('reg-error', '', false);
-  showMsg('reg-success', '', false);
-
-  if (!campos.nombres || !campos.apellidos || !campos.cedula || !campos.celular) {
+  showMsg('reg-error', '', false); showMsg('reg-success', '', false);
+  if (!campos.nombres || !campos.apellidos || !campos.cedula || !campos.celular)
     return showMsg('reg-error', 'Todos los campos son obligatorios', true);
-  }
   if (campos.pin.length !== 4) return showMsg('reg-error', 'El PIN debe ser de 4 dígitos', true);
 
   const btn = document.getElementById('btn-registro');
   btn.classList.add('loading'); btn.textContent = 'Creando cuenta...';
-
   try {
-    const res = await fetch('/api/auth/registro', {
+    const res  = await fetch('/api/auth/registro', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(campos)
     });
     const data = await res.json();
     if (!res.ok) return showMsg('reg-error', data.error || 'Error al registrar', true);
-
     showMsg('reg-success',
       `✅ ¡Cuenta creada! Tu número de cuenta es: ${data.numeroCuenta}. Saldo inicial: $50,000 COP`, true);
     setTimeout(() => switchTab('login'), 4000);
-  } catch {
-    showMsg('reg-error', 'Error de conexión. Intenta de nuevo.', true);
-  } finally {
-    btn.classList.remove('loading'); btn.textContent = 'Crear mi cuenta';
-  }
+  } catch { showMsg('reg-error', 'Error de conexión. Intenta de nuevo.', true);
+  } finally { btn.classList.remove('loading'); btn.textContent = 'Crear mi cuenta'; }
 }
 
 // ═══════════════════════════════════════════
@@ -871,7 +759,7 @@ function renderDashboard() {
 
   const badge = document.getElementById('dash-estado-badge');
   const est   = session.estado || 'ACTIVA';
-  badge.className  = `estado-badge ${est}`;
+  badge.className   = `estado-badge ${est}`;
   badge.textContent = est === 'ACTIVA' ? '● Activa' : est === 'BLOQUEADA' ? '● Bloqueada' : '● En investigación';
 }
 
@@ -881,8 +769,9 @@ async function actualizarSaldo() {
     const res  = await fetch(`/api/saldo/${session.cedula}`);
     const data = await res.json();
     if (data.ok) {
-      session.saldo = data.saldo_actual;
-      document.getElementById('dash-saldo').textContent = fmt(session.saldo);
+      session.saldo  = data.saldo_actual;
+      session.estado = data.estado_cuenta;
+      renderDashboard();
       showAlert('success', 'Saldo actualizado', fmt(session.saldo), 3000);
     }
   } catch {}
@@ -895,7 +784,6 @@ async function cargarMovimientos() {
   if (!session) return;
   const lista = document.getElementById('mv-lista');
   lista.innerHTML = `<div class="empty-state"><div class="icon">⏳</div><div>Cargando...</div></div>`;
-
   try {
     const res  = await fetch(`/api/movimientos/${session.cedula}`);
     const data = await res.json();
@@ -903,7 +791,6 @@ async function cargarMovimientos() {
       lista.innerHTML = `<div class="empty-state"><div class="icon">📋</div><div>Sin movimientos registrados</div></div>`;
       return;
     }
-
     lista.innerHTML = data.movimientos.map(mv => {
       const esIngreso = mv.movimiento > 0;
       return `
@@ -918,9 +805,8 @@ async function cargarMovimientos() {
           </div>
         </div>`;
     }).join('');
-
     document.getElementById('mv-fecha-actualizacion').textContent =
-      `Actualizado ${new Date().toLocaleTimeString('es-CO', {hour:'2-digit',minute:'2-digit'})}`;
+      `Actualizado ${new Date().toLocaleTimeString('es-CO', {hour:'2-digit', minute:'2-digit'})}`;
   } catch {
     lista.innerHTML = `<div class="empty-state"><div class="icon">❌</div><div>Error cargando movimientos</div></div>`;
   }
@@ -931,13 +817,12 @@ async function cargarMovimientos() {
 // ═══════════════════════════════════════════
 function abrirTransferencia() {
   if (session?.estado !== 'ACTIVA') {
-    return showAlert('danger', 'Cuenta no disponible',
-      'Tu cuenta no está activa. Comunícate con servicio al cliente.');
+    return showAlert('danger', 'Cuenta no disponible', 'Tu cuenta no está activa. Comunícate con servicio al cliente.');
   }
-  document.getElementById('tx-step-form').style.display = 'block';
+  document.getElementById('tx-step-form').style.display   = 'block';
   document.getElementById('tx-step-result').style.display = 'none';
-  document.getElementById('tx-cuenta').value = '';
-  document.getElementById('tx-monto').value  = '';
+  document.getElementById('tx-cuenta').value  = '';
+  document.getElementById('tx-monto').value   = '';
   document.getElementById('tx-detalle').value = '';
   document.getElementById('monto-txt').textContent = '0';
   document.getElementById('tx-cuenta-preview').className = 'cuenta-preview';
@@ -945,23 +830,18 @@ function abrirTransferencia() {
   showMsg('tx-error', '', false);
   document.getElementById('modal-transferencia').classList.add('open');
 }
-
 function cerrarTransferencia() {
   document.getElementById('modal-transferencia').classList.remove('open');
-  actualizarSaldo();
-  cargarMovimientos();
+  actualizarSaldo(); cargarMovimientos();
 }
-
 function actualizarMontoDisplay(val) {
   document.getElementById('monto-txt').textContent = val
     ? new Intl.NumberFormat('es-CO').format(parseInt(val) || 0) : '0';
 }
-
 function buscarCuenta(val) {
   if (buscarTimeout) clearTimeout(buscarTimeout);
   const preview = document.getElementById('tx-cuenta-preview');
   if (val.length !== 10) { preview.className = 'cuenta-preview'; return; }
-
   buscarTimeout = setTimeout(async () => {
     try {
       const res  = await fetch(`/api/buscar-cuenta/${val}`);
@@ -969,6 +849,7 @@ function buscarCuenta(val) {
       if (data.ok) {
         const iniciales = data.nombre.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
         preview.className = 'cuenta-preview show';
+        preview.style.background = '';
         preview.innerHTML = `
           <div class="cp-avatar">${iniciales}</div>
           <div><div class="cp-name">${data.nombre}</div>
@@ -981,33 +862,25 @@ function buscarCuenta(val) {
     } catch {}
   }, 600);
 }
-
 async function ejecutarTransferencia() {
   const cuentaDestino = document.getElementById('tx-cuenta').value.trim();
   const monto         = parseFloat(document.getElementById('tx-monto').value);
   const detalle       = document.getElementById('tx-detalle').value.trim();
   showMsg('tx-error', '', false);
-
-  if (!cuentaDestino || cuentaDestino.length !== 10)
-    return showMsg('tx-error', 'Ingresa un número de cuenta válido (10 dígitos)', true);
-  if (!monto || monto < 1000)
-    return showMsg('tx-error', 'El monto mínimo es $1,000 COP', true);
-  if (cuentaDestino === session.numeroCuenta)
-    return showMsg('tx-error', 'No puedes transferirte a ti mismo', true);
+  if (!cuentaDestino || cuentaDestino.length !== 10) return showMsg('tx-error', 'Ingresa un número de cuenta válido (10 dígitos)', true);
+  if (!monto || monto < 1000) return showMsg('tx-error', 'El monto mínimo es $1,000 COP', true);
+  if (cuentaDestino === session.numeroCuenta) return showMsg('tx-error', 'No puedes transferirte a ti mismo', true);
 
   const btn = document.getElementById('btn-transferir');
   btn.classList.add('loading'); btn.textContent = 'Procesando...';
-
   try {
     const res  = await fetch('/api/transferencia', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cedulaOrigen: session.cedula, cuentaDestino, monto, detalle })
     });
     const data = await res.json();
-
-    document.getElementById('tx-step-form').style.display  = 'none';
+    document.getElementById('tx-step-form').style.display   = 'none';
     document.getElementById('tx-step-result').style.display = 'block';
-
     if (data.ok) {
       session.saldo -= monto;
       document.getElementById('tx-result-content').innerHTML = `
@@ -1021,7 +894,7 @@ async function ejecutarTransferencia() {
         <div class="tx-icon">🔒</div>
         <h3 style="color:#92400E">Transacción bajo investigación</h3>
         <p>${data.mensaje}</p>
-        <p style="margin-top:12px;color:var(--red);font-size:13px;">Tu cuenta ha sido bloqueada preventivamente. Llama a la línea 018000-BANCO.</p>`;
+        <p style="margin-top:12px;color:var(--red);font-size:13px;">Tu cuenta ha sido bloqueada preventivamente. Revisa tu WhatsApp para confirmar o rechazar la transferencia.</p>`;
       showAlert('danger', 'Cuenta bloqueada', data.mensaje, 0);
     } else {
       document.getElementById('tx-result-content').innerHTML = `
@@ -1029,17 +902,88 @@ async function ejecutarTransferencia() {
         <h3 style="color:var(--red)">Transferencia fallida</h3>
         <p>${data.mensaje || data.error || 'Error desconocido'}</p>`;
     }
-
     renderDashboard();
-  } catch {
-    showMsg('tx-error', 'Error de conexión. Intenta de nuevo.', true);
-  } finally {
-    btn.classList.remove('loading'); btn.textContent = 'Confirmar transferencia';
-  }
+  } catch { showMsg('tx-error', 'Error de conexión. Intenta de nuevo.', true);
+  } finally { btn.classList.remove('loading'); btn.textContent = 'Confirmar transferencia'; }
 }
 
 // ═══════════════════════════════════════════
-// CHATBOT (abre el bot de WhatsApp si hay número)
+// SOLICITAR PRODUCTO
+// ═══════════════════════════════════════════
+function abrirProductos() {
+  resetProductos();
+  document.getElementById('modal-productos').classList.add('open');
+}
+function cerrarProductos() {
+  document.getElementById('modal-productos').classList.remove('open');
+  resetProductos();
+}
+function resetProductos() {
+  productoSeleccionado = null;
+  document.querySelectorAll('.producto-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('prod-step-selector').style.display = 'block';
+  document.getElementById('prod-step-result').style.display   = 'none';
+  showMsg('prod-error', '', false);
+}
+function seleccionarProducto(tipo) {
+  productoSeleccionado = tipo;
+  document.querySelectorAll('.producto-card').forEach(c => c.classList.remove('selected'));
+  const mapa = { TARJETA_CREDITO: 'pc-tarjeta', CREDITO_CONSUMO: 'pc-consumo', CREDITO_VIVIENDA: 'pc-vivienda' };
+  document.getElementById(mapa[tipo]).classList.add('selected');
+  showMsg('prod-error', '', false);
+}
+async function ejecutarSolicitudProducto() {
+  if (!productoSeleccionado) return showMsg('prod-error', 'Selecciona un producto primero', true);
+  if (!session) return;
+
+  const btn = document.getElementById('btn-solicitar');
+  btn.classList.add('loading'); btn.textContent = 'Evaluando perfil...';
+  try {
+    const res  = await fetch('/api/solicitar-producto', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cedula: session.cedula, tipoProducto: productoSeleccionado })
+    });
+    const data = await res.json();
+
+    document.getElementById('prod-step-selector').style.display = 'none';
+    document.getElementById('prod-step-result').style.display   = 'block';
+
+    const nombresProd = { TARJETA_CREDITO: 'Tarjeta de Crédito', CREDITO_CONSUMO: 'Crédito de Consumo', CREDITO_VIVIENDA: 'Crédito de Vivienda' };
+    const nombreProd  = nombresProd[productoSeleccionado] || productoSeleccionado;
+
+    if (data.aprobado) {
+      document.getElementById('prod-result-content').innerHTML = `
+        <div class="prod-result aprobado">
+          <div class="pr-icon">🎉</div>
+          <div class="pr-title">¡${nombreProd} Aprobado!</div>
+          <div class="pr-cupo">${fmt(data.cupo)}</div>
+          <div class="pr-motivo">${data.motivo}</div>
+          <div class="pr-badges">
+            <span class="pr-badge">Perfil ${data.nivel}</span>
+            <span class="pr-badge">CPM: ${fmt(data.cpm)}/mes</span>
+          </div>
+        </div>
+        <p style="font-size:13px;color:var(--gray-500);margin-top:14px;text-align:center;">
+          Un asesor se comunicará contigo en las próximas 24h para formalizar el producto. 
+          También puedes continuar el proceso con <strong>QuindBot</strong> en WhatsApp.
+        </p>`;
+    } else {
+      document.getElementById('prod-result-content').innerHTML = `
+        <div class="prod-result denegado">
+          <div class="pr-icon">📋</div>
+          <div class="pr-title">Solicitud no aprobada</div>
+          <div class="pr-motivo" style="margin-top:10px;">${data.motivo}</div>
+        </div>
+        <p style="font-size:13px;color:var(--gray-500);margin-top:14px;text-align:center;">
+          Habla con <strong>QuindBot</strong> en WhatsApp para conocer cómo mejorar tu perfil y cuándo volver a aplicar.
+        </p>`;
+    }
+  } catch { showMsg('prod-error', 'Error de conexión. Intenta de nuevo.', true);
+  } finally { btn.classList.remove('loading'); btn.textContent = 'Evaluar mi perfil'; }
+}
+
+// ═══════════════════════════════════════════
+// CHATBOT — abre WhatsApp
 // ═══════════════════════════════════════════
 function abrirChatbot() {
   window.open('https://wa.me/573003094183?text=Hola+QuindBot', '_blank');
@@ -1061,7 +1005,7 @@ function doLogout() {
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter') {
     const activeTab = document.querySelector('.tab-content.active');
-    if (activeTab?.id === 'tab-login') doLogin();
+    if (activeTab?.id === 'tab-login')   doLogin();
     if (activeTab?.id === 'tab-registro') doRegistro();
   }
 });
