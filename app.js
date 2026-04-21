@@ -44,23 +44,8 @@ ${saludoLinea}
 Por favor selecciona una opción 👇`;
 
     try {
-        // Usar lista interactiva (funciona en cuentas WA personales y Business)
-        // Los `buttons` de Baileys solo renderizan en algunas versiones de WA Business.
         await sockGlobal.sendMessage(numeroWA, {
-            listMessage: {
-                title:       '🚨 ALERTA DE SEGURIDAD — Banco QUIND',
-                description: mensajeAlerta,
-                buttonText:  'Seleccionar respuesta',
-                footerText:  'Banco QUIND — Seguridad',
-                listType:    1,
-                sections: [{
-                    title: '¿Autorizaste esta transferencia?',
-                    rows: [
-                        { rowId: 'fraude_si', title: '✅ Sí, fui yo',     description: 'Confirmar la transferencia como autorizada' },
-                        { rowId: 'fraude_no', title: '🔒 No, bloquear',   description: 'Bloquear cuenta y reportar fraude' }
-                    ]
-                }]
-            }
+            text: mensajeAlerta + `\n\n*1️⃣* Sí, fui yo ✅\n*2️⃣* No, bloquear cuenta 🔒\n\nResponde *1* o *2*`
         });
 
         // Si no tenemos cédula, pedir que la ingrese (no podemos identificarlos sin ella)
@@ -250,30 +235,24 @@ async function enviarMenuPrincipal(jid, identificado = false, nombre = null) {
         ? `¡Hola de nuevo, *${nombre.split(' ')[0]}*! 👋`
         : `¡Hola! 👋 Soy *QuindBot*, tu asesor bancario personal del *Banco QUIND*.`;
 
-    const descripcion = identificado
-        ? `¿En qué puedo ayudarte hoy?`
-        : `Aún no te has identificado. Puedes escribir tu *cédula* para acceder a tu información, o elegir una opción del menú.`;
+    const pie = identificado
+        ? `¿En qué puedo ayudarte hoy?\n\nElige una opción o escríbeme directamente:`
+        : `Escribe tu *número de cédula* para acceder a tu información, o elige una opción:`;
 
-    // listMessage funciona en cuentas WA personales y Business (los `buttons` solo en Business)
     await sockGlobal.sendMessage(jid, {
-        listMessage: {
-            title:       saludo,
-            description: descripcion,
-            buttonText:  'Ver opciones',
-            footerText:  'Banco QUIND',
-            listType:    1,
-            sections: [{
-                title: 'Servicios disponibles',
-                rows: [
-                    { rowId: 'menu_credito',     title: '📊 Análisis crediticio',    description: 'Perfil y capacidad de endeudamiento' },
-                    { rowId: 'menu_movimientos', title: '💳 Movimientos',             description: 'Transacciones, ingresos y egresos' },
-                    { rowId: 'menu_simulacion',  title: '🏦 Simulación de crédito',  description: 'Calcula cuotas y proyecciones' },
-                    { rowId: 'menu_salario',     title: '💼 Posición salarial',       description: 'Analiza tu salario vs el mercado' },
-                    { rowId: 'menu_pqr',         title: '📝 PQR',                    description: 'Peticiones, Quejas o Reclamos' },
-                    { rowId: 'menu_productos',   title: '🎁 Solicitar producto',      description: 'Tarjeta de crédito o préstamo' }
-                ]
-            }]
-        }
+        text:
+`${saludo}
+
+${pie}
+
+*1️⃣* 📊 Análisis crediticio
+*2️⃣* 💳 Movimientos
+*3️⃣* 🏦 Simulación de crédito
+*4️⃣* 💼 Posición salarial
+*5️⃣* 📝 PQR (Peticiones, Quejas o Reclamos)
+*6️⃣* 🎁 Solicitar producto
+
+_Responde con el número o escribe tu consulta directamente_ 😊`
     });
 }
 
@@ -303,26 +282,11 @@ Detectamos una transacción inusual en tu cuenta:
 ¿Fuiste tú quien realizó esta transacción?`;
 
     if (sockGlobal) {
-        const msgAlertaLista = {
-            listMessage: {
-                title:       '🚨 ALERTA DE SEGURIDAD — Banco QUIND',
-                description: mensajeAlerta,
-                buttonText:  'Seleccionar respuesta',
-                footerText:  'Banco QUIND — Seguridad',
-                listType:    1,
-                sections: [{
-                    title: '¿Autorizaste esta transacción?',
-                    rows: [
-                        { rowId: 'fraude_si', title: '✅ Sí, fui yo',   description: 'Confirmar como autorizada' },
-                        { rowId: 'fraude_no', title: '🔒 No, bloquear', description: 'Bloquear cuenta y reportar fraude' }
-                    ]
-                }]
-            }
-        };
-        await sockGlobal.sendMessage(numeroWhatsApp, msgAlertaLista);
+        const textoAlerta = mensajeAlerta + `\n\n*1️⃣* Sí, fui yo ✅\n*2️⃣* No, bloquear cuenta 🔒\n\nResponde *1* o *2*`;
+        await sockGlobal.sendMessage(numeroWhatsApp, { text: textoAlerta });
         if (telefonoRegistrado && telefonoRegistrado !== numeroWhatsApp) {
-            await sockGlobal.sendMessage(telefonoRegistrado, msgAlertaLista);
-            console.log(`📲 Alerta con lista enviada al teléfono registrado: ${telefonoRegistrado}`);
+            await sockGlobal.sendMessage(telefonoRegistrado, { text: textoAlerta });
+            console.log(`📲 Alerta enviada al teléfono registrado: ${telefonoRegistrado}`);
         }
     }
 
@@ -715,11 +679,11 @@ async function conectarWhatsApp() {
         // HANDLER DE ALERTA DE FRAUDE PENDIENTE
         // ════════════════════════════════════════════════════════
         if (sesion.alertaFraude?.pendiente) {
-            // Normalizar: aceptar tanto ID de botón como texto libre
+            // Normalizar: aceptar tanto ID de botón, número (1/2) como texto libre
             const texto = textoUsuario.toLowerCase().trim();
-            const esNo  = texto === 'fraude_no' ||
+            const esNo  = texto === 'fraude_no' || texto === '2' ||
                           /^no\b|no fui|no la reconoc|no la autoriz|no autoriz|bloquear/i.test(textoUsuario);
-            const esSi  = texto === 'fraude_si' ||
+            const esSi  = texto === 'fraude_si' || texto === '1' ||
                           /^s[íi]\b|sí fui|si fui|la reconoc|la autoricé|si la hice|si fui yo|fui yo/i.test(textoUsuario);
 
             console.log(`🔐 Respuesta fraude | esNo: ${esNo} | esSi: ${esSi} | texto: "${textoUsuario}"`);
@@ -736,20 +700,7 @@ async function conectarWhatsApp() {
                         sesion.alertaFraude.cedula = cedulaEnTexto;
                         alertasPorCedula.set(cedulaEnTexto, sesion.alertaFraude);
                         await sock.sendMessage(numeroUsuario, {
-                            listMessage: {
-                                title:       `✅ Identidad verificada, *${cliente.nombres}*`,
-                                description: '¿Esta transferencia fue realizada por ti?',
-                                buttonText:  'Seleccionar respuesta',
-                                footerText:  'Banco QUIND — Seguridad',
-                                listType:    1,
-                                sections: [{
-                                    title: '¿Autorizaste esta transferencia?',
-                                    rows: [
-                                        { rowId: 'fraude_si', title: '✅ Sí, fui yo',   description: 'Confirmar la transferencia como autorizada' },
-                                        { rowId: 'fraude_no', title: '🔒 No, bloquear', description: 'Bloquear cuenta y reportar fraude' }
-                                    ]
-                                }]
-                            }
+                            text: `✅ Identidad verificada, *${cliente.nombres}*.\n\n¿Esta transferencia fue realizada por ti?\n\n*1️⃣* Sí, fui yo ✅\n*2️⃣* No, bloquear cuenta 🔒\n\nResponde *1* o *2*`
                         });
                     } else {
                         await sock.sendMessage(numeroUsuario, {
@@ -865,38 +816,29 @@ async function conectarWhatsApp() {
                 return;
             }
 
-            // Respuesta no reconocida — reenviar lista interactiva
+            // Respuesta no reconocida — recordar opciones en texto plano
             await sock.sendMessage(numeroUsuario, {
-                listMessage: {
-                    title:       '¿Autorizaste esta transferencia?',
-                    description: 'Por favor selecciona una de las opciones para continuar.',
-                    buttonText:  'Seleccionar respuesta',
-                    footerText:  'Banco QUIND — Seguridad',
-                    listType:    1,
-                    sections: [{
-                        title: 'Opciones',
-                        rows: [
-                            { rowId: 'fraude_si', title: '✅ Sí, fui yo',   description: 'Confirmar la transferencia como autorizada' },
-                            { rowId: 'fraude_no', title: '🔒 No, bloquear', description: 'Bloquear cuenta y reportar fraude' }
-                        ]
-                    }]
-                }
+                text: `No reconocí tu respuesta. Por favor responde:\n\n*1️⃣* Sí, fui yo ✅\n*2️⃣* No, bloquear cuenta 🔒\n\nEscribe *1* o *2*`
             });
             return;
         }
 
-        // ════════════════════════════════════════════════════════
-        // MAPEO DE BOTONES DEL MENÚ → texto de agente
-        // ════════════════════════════════════════════════════════
+        // Mapeo de IDs de botón/lista Y números del menú → intención del agente
         const menuMap = {
             'menu_credito':     'Quiero ver mi análisis crediticio y perfil de endeudamiento.',
             'menu_movimientos': 'Quiero revisar mis últimos movimientos y transacciones.',
             'menu_simulacion':  'Quiero simular un crédito.',
             'menu_salario':     'Quiero conocer mi posición salarial en el mercado.',
             'menu_pqr':         'Quiero radicar una PQR (Petición, Queja o Reclamo).',
-            'menu_productos':   'Quiero solicitar un producto financiero (tarjeta de crédito o crédito).'
+            'menu_productos':   'Quiero solicitar un producto financiero (tarjeta de crédito o crédito).',
+            '1':                'Quiero ver mi análisis crediticio y perfil de endeudamiento.',
+            '2':                'Quiero revisar mis últimos movimientos y transacciones.',
+            '3':                'Quiero simular un crédito.',
+            '4':                'Quiero conocer mi posición salarial en el mercado.',
+            '5':                'Quiero radicar una PQR (Petición, Queja o Reclamo).',
+            '6':                'Quiero solicitar un producto financiero (tarjeta de crédito o crédito).'
         };
-        const mensajeEfectivo = menuMap[textoUsuario] || textoUsuario;
+        const mensajeEfectivo = menuMap[textoUsuario.trim()] || textoUsuario;
 
         // ════════════════════════════════════════════════════════
         // FLUJO NORMAL — identificación y agente
