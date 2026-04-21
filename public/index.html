@@ -219,7 +219,7 @@
 
   .main-content { max-width: 900px; margin: -48px auto 0; padding: 0 20px 40px; position: relative; z-index: 1; }
 
-  .quick-actions { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }
+  .quick-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
   .qa-btn {
     background: white; border: none; border-radius: var(--r-md);
     padding: 18px 10px; display: flex; flex-direction: column;
@@ -464,12 +464,20 @@
   <!-- Hero saldo -->
   <div class="hero-section">
     <div class="hero-label">Saldo disponible</div>
-    <div class="hero-saldo" id="dash-saldo">$0</div>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <div class="hero-saldo" id="dash-saldo">$0</div>
+      <button onclick="actualizarSaldo()" title="Actualizar saldo"
+        style="background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.35);color:white;
+               border-radius:10px;padding:8px 13px;cursor:pointer;font-size:18px;line-height:1;
+               transition:background .2s;flex-shrink:0;"
+        onmouseover="this.style.background='rgba(255,255,255,.28)'"
+        onmouseout="this.style.background='rgba(255,255,255,.18)'">🔄</button>
+    </div>
     <div class="hero-cuenta">Cuenta <strong id="dash-cuenta">—</strong> &nbsp;|&nbsp; <span id="dash-estado-badge"></span></div>
   </div>
 
   <div class="main-content">
-    <!-- Acciones rápidas — 5 botones -->
+    <!-- Acciones rápidas — 4 botones (Actualizar está en el hero junto al saldo) -->
     <div class="quick-actions">
       <button class="qa-btn" onclick="abrirTransferencia()">
         <div class="qa-icon blue">💸</div>
@@ -478,10 +486,6 @@
       <button class="qa-btn" onclick="cargarMovimientos()">
         <div class="qa-icon teal">📊</div>
         <span class="qa-label">Movimientos</span>
-      </button>
-      <button class="qa-btn" onclick="actualizarSaldo()">
-        <div class="qa-icon gold">🔄</div>
-        <span class="qa-label">Actualizar</span>
       </button>
       <button class="qa-btn" onclick="abrirProductos()">
         <div class="qa-icon purple">🎁</div>
@@ -630,8 +634,10 @@ const fmt = (n) => new Intl.NumberFormat('es-CO', {
 }).format(n || 0);
 
 const fmtFecha = (d) => {
-  const dt = new Date(d);
-  return isNaN(dt) ? d : dt.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+  // BigQuery retorna fechas como {value: "YYYY-MM-DD"} — extraer el string
+  const raw = (d && typeof d === 'object' && d.value) ? d.value : d;
+  const dt  = new Date(raw);
+  return isNaN(dt) ? (raw || '—') : dt.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 function getPIN(selector) {
@@ -700,6 +706,8 @@ async function doLogin() {
     const data = await res.json();
     if (!res.ok) return showMsg('login-error', data.error || 'Error al ingresar', true);
     session = data.cliente;
+    // saldo_promedio_cuentas viene del login response
+    if (data.cliente.saldoPromedio === undefined) session.saldoPromedio = data.cliente.saldo;
     renderDashboard();
     showScreen('screen-dashboard');
     cargarMovimientos();
@@ -755,7 +763,7 @@ function renderDashboard() {
   document.getElementById('dash-cuenta').textContent   = session.numeroCuenta || '—';
   document.getElementById('dash-deuda').textContent    = fmt(session.deudaTarjetas);
   document.getElementById('dash-cupo').textContent     = `Cupo: ${fmt(session.cupoTarjetas)}`;
-  document.getElementById('dash-promedio').textContent = fmt(session.saldo);
+  document.getElementById('dash-promedio').textContent = fmt(session.saldoPromedio);
 
   const badge = document.getElementById('dash-estado-badge');
   const est   = session.estado || 'ACTIVA';
@@ -769,8 +777,9 @@ async function actualizarSaldo() {
     const res  = await fetch(`/api/saldo/${session.cedula}`);
     const data = await res.json();
     if (data.ok) {
-      session.saldo  = data.saldo_actual;
-      session.estado = data.estado_cuenta;
+      session.saldo        = data.saldo_actual;
+      session.saldoPromedio = data.saldo_promedio_cuentas ?? session.saldoPromedio;
+      session.estado       = data.estado_cuenta;
       renderDashboard();
       showAlert('success', 'Saldo actualizado', fmt(session.saldo), 3000);
     }

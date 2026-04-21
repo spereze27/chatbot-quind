@@ -44,15 +44,23 @@ ${saludoLinea}
 Por favor selecciona una opción 👇`;
 
     try {
-        // Enviar mensaje con botones SÍ / NO
+        // Usar lista interactiva (funciona en cuentas WA personales y Business)
+        // Los `buttons` de Baileys solo renderizan en algunas versiones de WA Business.
         await sockGlobal.sendMessage(numeroWA, {
-            text: mensajeAlerta,
-            footer: 'Banco QUIND — Seguridad',
-            buttons: [
-                { buttonId: 'fraude_si', buttonText: { displayText: '✅ Sí, fui yo' }, type: 1 },
-                { buttonId: 'fraude_no', buttonText: { displayText: '🔒 No, bloquear' }, type: 1 }
-            ],
-            headerType: 1
+            listMessage: {
+                title:       '🚨 ALERTA DE SEGURIDAD — Banco QUIND',
+                description: mensajeAlerta,
+                buttonText:  'Seleccionar respuesta',
+                footerText:  'Banco QUIND — Seguridad',
+                listType:    1,
+                sections: [{
+                    title: '¿Autorizaste esta transferencia?',
+                    rows: [
+                        { rowId: 'fraude_si', title: '✅ Sí, fui yo',     description: 'Confirmar la transferencia como autorizada' },
+                        { rowId: 'fraude_no', title: '🔒 No, bloquear',   description: 'Bloquear cuenta y reportar fraude' }
+                    ]
+                }]
+            }
         });
 
         // Si no tenemos cédula, pedir que la ingrese (no podemos identificarlos sin ella)
@@ -239,38 +247,34 @@ let sockGlobal = null;
 // ─────────────────────────────────────────────
 async function enviarMenuPrincipal(jid, identificado = false, nombre = null) {
     const saludo = identificado && nombre
-        ? `¡Hola de nuevo, *${nombre.split(' ')[0]}*! 👋 ¿En qué puedo ayudarte hoy?`
-        : `¡Hola! 👋 Soy *QuindBot*, tu asesor bancario personal del *Banco QUIND*.\n\nAún no te has identificado. ¿En qué puedo ayudarte?`;
+        ? `¡Hola de nuevo, *${nombre.split(' ')[0]}*! 👋`
+        : `¡Hola! 👋 Soy *QuindBot*, tu asesor bancario personal del *Banco QUIND*.`;
 
-    // WhatsApp solo soporta hasta 3 botones por mensaje.
-    // Enviamos 2 mensajes: primero con 3 opciones, luego con las restantes.
+    const descripcion = identificado
+        ? `¿En qué puedo ayudarte hoy?`
+        : `Aún no te has identificado. Puedes escribir tu *cédula* para acceder a tu información, o elegir una opción del menú.`;
+
+    // listMessage funciona en cuentas WA personales y Business (los `buttons` solo en Business)
     await sockGlobal.sendMessage(jid, {
-        text: saludo + `\n\nSelecciona una opción 👇`,
-        footer: 'Banco QUIND',
-        buttons: [
-            { buttonId: 'menu_credito',    buttonText: { displayText: '📊 Análisis crediticio' },    type: 1 },
-            { buttonId: 'menu_movimientos',buttonText: { displayText: '💳 Movimientos' },             type: 1 },
-            { buttonId: 'menu_simulacion', buttonText: { displayText: '🏦 Simulación de crédito' },  type: 1 }
-        ],
-        headerType: 1
+        listMessage: {
+            title:       saludo,
+            description: descripcion,
+            buttonText:  'Ver opciones',
+            footerText:  'Banco QUIND',
+            listType:    1,
+            sections: [{
+                title: 'Servicios disponibles',
+                rows: [
+                    { rowId: 'menu_credito',     title: '📊 Análisis crediticio',    description: 'Perfil y capacidad de endeudamiento' },
+                    { rowId: 'menu_movimientos', title: '💳 Movimientos',             description: 'Transacciones, ingresos y egresos' },
+                    { rowId: 'menu_simulacion',  title: '🏦 Simulación de crédito',  description: 'Calcula cuotas y proyecciones' },
+                    { rowId: 'menu_salario',     title: '💼 Posición salarial',       description: 'Analiza tu salario vs el mercado' },
+                    { rowId: 'menu_pqr',         title: '📝 PQR',                    description: 'Peticiones, Quejas o Reclamos' },
+                    { rowId: 'menu_productos',   title: '🎁 Solicitar producto',      description: 'Tarjeta de crédito o préstamo' }
+                ]
+            }]
+        }
     });
-
-    await sockGlobal.sendMessage(jid, {
-        text: `Más opciones 👇`,
-        footer: 'Banco QUIND',
-        buttons: [
-            { buttonId: 'menu_salario',    buttonText: { displayText: '💼 Posición salarial' },      type: 1 },
-            { buttonId: 'menu_pqr',        buttonText: { displayText: '📝 PQR' },                    type: 1 },
-            { buttonId: 'menu_productos',  buttonText: { displayText: '🎁 Solicitar producto' },     type: 1 }
-        ],
-        headerType: 1
-    });
-
-    if (!identificado) {
-        await sockGlobal.sendMessage(jid, {
-            text: `También puedes simplemente *escribirme lo que necesitas* y te ayudo. 😊\n\nSi quieres acceder a tu información personal, escribe tu número de *cédula*.`
-        });
-    }
 }
 
 // ─────────────────────────────────────────────
@@ -299,27 +303,26 @@ Detectamos una transacción inusual en tu cuenta:
 ¿Fuiste tú quien realizó esta transacción?`;
 
     if (sockGlobal) {
-        await sockGlobal.sendMessage(numeroWhatsApp, {
-            text: mensajeAlerta,
-            footer: 'Banco QUIND — Seguridad',
-            buttons: [
-                { buttonId: 'fraude_si', buttonText: { displayText: '✅ Sí, fui yo' }, type: 1 },
-                { buttonId: 'fraude_no', buttonText: { displayText: '🔒 No, bloquear' }, type: 1 }
-            ],
-            headerType: 1
-        });
-
+        const msgAlertaLista = {
+            listMessage: {
+                title:       '🚨 ALERTA DE SEGURIDAD — Banco QUIND',
+                description: mensajeAlerta,
+                buttonText:  'Seleccionar respuesta',
+                footerText:  'Banco QUIND — Seguridad',
+                listType:    1,
+                sections: [{
+                    title: '¿Autorizaste esta transacción?',
+                    rows: [
+                        { rowId: 'fraude_si', title: '✅ Sí, fui yo',   description: 'Confirmar como autorizada' },
+                        { rowId: 'fraude_no', title: '🔒 No, bloquear', description: 'Bloquear cuenta y reportar fraude' }
+                    ]
+                }]
+            }
+        };
+        await sockGlobal.sendMessage(numeroWhatsApp, msgAlertaLista);
         if (telefonoRegistrado && telefonoRegistrado !== numeroWhatsApp) {
-            await sockGlobal.sendMessage(telefonoRegistrado, {
-                text: mensajeAlerta,
-                footer: 'Banco QUIND — Seguridad',
-                buttons: [
-                    { buttonId: 'fraude_si', buttonText: { displayText: '✅ Sí, fui yo' }, type: 1 },
-                    { buttonId: 'fraude_no', buttonText: { displayText: '🔒 No, bloquear' }, type: 1 }
-                ],
-                headerType: 1
-            });
-            console.log(`📲 Alerta con botones enviada al teléfono registrado: ${telefonoRegistrado}`);
+            await sockGlobal.sendMessage(telefonoRegistrado, msgAlertaLista);
+            console.log(`📲 Alerta con lista enviada al teléfono registrado: ${telefonoRegistrado}`);
         }
     }
 
@@ -617,18 +620,19 @@ async function conectarWhatsApp() {
         const numeroUsuario = msg.key.remoteJid;
         const m             = msg.message;
 
-        // Extracción robusta de texto — incluye respuestas de botones
+        // Extracción robusta de texto — lista interactiva tiene prioridad sobre texto libre
         let textoUsuario =
+            m.listResponseMessage?.singleSelectReply?.selectedRowId ||  // ← lista interactiva (rowId)
+            m.buttonsResponseMessage?.selectedButtonId ||                // botón (Business)
+            m.buttonsResponseMessage?.selectedDisplayText ||
+            m.templateButtonReplyMessage?.selectedId ||
             m.conversation ||
             m.extendedTextMessage?.text ||
-            m.buttonsResponseMessage?.selectedButtonId ||    // ID del botón pulsado
-            m.buttonsResponseMessage?.selectedDisplayText || // Texto visible del botón
-            m.templateButtonReplyMessage?.selectedId ||
+            m.ephemeralMessage?.message?.listResponseMessage?.singleSelectReply?.selectedRowId ||
             m.ephemeralMessage?.message?.conversation ||
             m.ephemeralMessage?.message?.extendedTextMessage?.text ||
             m.ephemeralMessage?.message?.buttonsResponseMessage?.selectedButtonId ||
             m.viewOnceMessage?.message?.conversation ||
-            m.listResponseMessage?.singleSelectReply?.selectedRowId ||
             null;
 
         let pdfBase64    = null;
@@ -732,13 +736,20 @@ async function conectarWhatsApp() {
                         sesion.alertaFraude.cedula = cedulaEnTexto;
                         alertasPorCedula.set(cedulaEnTexto, sesion.alertaFraude);
                         await sock.sendMessage(numeroUsuario, {
-                            text: `✅ Identidad verificada, *${cliente.nombres}*.\n\n¿Esta transferencia fue realizada por ti?`,
-                            footer: 'Banco QUIND — Seguridad',
-                            buttons: [
-                                { buttonId: 'fraude_si', buttonText: { displayText: '✅ Sí, fui yo' }, type: 1 },
-                                { buttonId: 'fraude_no', buttonText: { displayText: '🔒 No, bloquear' }, type: 1 }
-                            ],
-                            headerType: 1
+                            listMessage: {
+                                title:       `✅ Identidad verificada, *${cliente.nombres}*`,
+                                description: '¿Esta transferencia fue realizada por ti?',
+                                buttonText:  'Seleccionar respuesta',
+                                footerText:  'Banco QUIND — Seguridad',
+                                listType:    1,
+                                sections: [{
+                                    title: '¿Autorizaste esta transferencia?',
+                                    rows: [
+                                        { rowId: 'fraude_si', title: '✅ Sí, fui yo',   description: 'Confirmar la transferencia como autorizada' },
+                                        { rowId: 'fraude_no', title: '🔒 No, bloquear', description: 'Bloquear cuenta y reportar fraude' }
+                                    ]
+                                }]
+                            }
                         });
                     } else {
                         await sock.sendMessage(numeroUsuario, {
@@ -854,15 +865,22 @@ async function conectarWhatsApp() {
                 return;
             }
 
-            // Respuesta no reconocida
+            // Respuesta no reconocida — reenviar lista interactiva
             await sock.sendMessage(numeroUsuario, {
-                text: `Por favor selecciona una opción 👇`,
-                footer: 'Banco QUIND — Seguridad',
-                buttons: [
-                    { buttonId: 'fraude_si', buttonText: { displayText: '✅ Sí, fui yo' }, type: 1 },
-                    { buttonId: 'fraude_no', buttonText: { displayText: '🔒 No, bloquear' }, type: 1 }
-                ],
-                headerType: 1
+                listMessage: {
+                    title:       '¿Autorizaste esta transferencia?',
+                    description: 'Por favor selecciona una de las opciones para continuar.',
+                    buttonText:  'Seleccionar respuesta',
+                    footerText:  'Banco QUIND — Seguridad',
+                    listType:    1,
+                    sections: [{
+                        title: 'Opciones',
+                        rows: [
+                            { rowId: 'fraude_si', title: '✅ Sí, fui yo',   description: 'Confirmar la transferencia como autorizada' },
+                            { rowId: 'fraude_no', title: '🔒 No, bloquear', description: 'Bloquear cuenta y reportar fraude' }
+                        ]
+                    }]
+                }
             });
             return;
         }

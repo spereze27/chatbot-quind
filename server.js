@@ -274,6 +274,7 @@ app.post('/api/auth/login', async (req, res) => {
                 celular:       cliente.celular,
                 numeroCuenta:  cliente.numero_cuenta,
                 saldo:         cliente.saldo_actual         || 0,
+                saldoPromedio: cliente.saldo_promedio_cuentas || 0,
                 deudaTarjetas: cliente.deuda_actual_tarjetas || 0,
                 cupoTarjetas:  cliente.cupo_total_tarjetas   || 0,
                 estado:        cliente.estado_cuenta
