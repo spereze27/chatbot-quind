@@ -522,7 +522,9 @@
     <div id="tab-login" class="tab-content active">
       <div class="form-group">
         <label>Número de cédula</label>
-        <input type="number" id="login-cedula" placeholder="Ej: 1052345678" maxlength="12">
+        <input type="text" id="login-cedula" inputmode="numeric" pattern="[0-9]+"
+               placeholder="Ej: 1052345678" maxlength="12"
+               oninput="this.value=this.value.replace(/\D/g,'')">
       </div>
       <div class="form-group">
         <label>PIN (4 dígitos)</label>
@@ -557,7 +559,9 @@
       </div>
       <div class="form-group">
         <label>Número de cédula *</label>
-        <input type="number" id="reg-cedula" placeholder="Ej: 1052345678">
+        <input type="text" id="reg-cedula" inputmode="numeric" pattern="[0-9]+"
+               placeholder="Ej: 1052345678" maxlength="12"
+               oninput="this.value=this.value.replace(/\D/g,'')">
       </div>
       <div class="form-group">
         <label>Celular *</label>
@@ -964,7 +968,9 @@ function showAlert(type, title, msg, autoClose = 5000) {
 function cerrarAlerta() { document.getElementById('alert-banner').classList.remove('show'); }
 function showMsg(id, msg, visible = true) {
   const el = document.getElementById(id);
-  el.textContent = msg; el.style.display = visible ? 'block' : 'none';
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = visible ? 'block' : 'none';
 }
 
 // Enviar con Enter en PIN
@@ -991,41 +997,54 @@ function switchTab(tab) {
 // AUTH: LOGIN
 // ═══════════════════════════════════════════
 async function doLogin() {
-  const cedula = document.getElementById('login-cedula').value.trim();
-  const pin    = document.getElementById('login-pin').value.trim();
-  const btn    = document.getElementById('btn-login');
+  const cedulaEl = document.getElementById('login-cedula');
+  const pinEl    = document.getElementById('login-pin');
+  const btn      = document.getElementById('btn-login');
 
-  showMsg('login-error', '', false);
+  const cedula = (cedulaEl?.value || '').toString().trim().replace(/\D/g, '');
+  const pin    = (pinEl?.value    || '').toString().trim().replace(/\D/g, '');
+
+  showMsg('login-error',   '', false);
   showMsg('login-success', '', false);
 
-  if (!cedula)          return showMsg('login-error', 'Ingresa tu número de cédula', true);
-  if (pin.length !== 4) return showMsg('login-error', 'Ingresa tu PIN de 4 dígitos', true);
+  if (!cedula || cedula.length < 6)  return showMsg('login-error', 'Ingresa tu número de cédula', true);
+  if (pin.length !== 4)              return showMsg('login-error', 'Ingresa tu PIN de 4 dígitos', true);
 
-  btn.classList.add('loading'); btn.textContent = 'Verificando...';
+  btn.disabled = true;
+  btn.classList.add('loading');
+  btn.textContent = 'Verificando...';
+
   try {
     const res  = await fetch('/api/auth/login', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cedula, pin })
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ cedula, pin })
     });
     const data = await res.json();
+
     if (!res.ok) {
       showMsg('login-error', data.error || 'Cédula o PIN incorrectos', true);
       return;
     }
-    session = data.cliente;
-    if (session.saldoPromedio === undefined) session.saldoPromedio = session.saldo;
+
+    session              = data.cliente;
+    session.saldoPromedio = session.saldoPromedio ?? session.saldo ?? 0;
+
     renderDashboard();
     showScreen('screen-dashboard');
     cargarMovimientos();
+
     if (data.alertaDispositivoNuevo) {
       setTimeout(() => showAlert('warning', 'Nuevo dispositivo detectado',
-        'Detectamos un acceso desde un dispositivo diferente. Si no fuiste tú, cambia tu PIN.', 8000), 1000);
+        'Acceso desde dispositivo diferente. Si no fuiste tú, cambia tu PIN.', 8000), 800);
     }
   } catch (err) {
-    console.error('Login error:', err);
-    showMsg('login-error', 'Error de conexión. Intenta de nuevo.', true);
+    console.error('[doLogin] Error:', err);
+    showMsg('login-error', 'Error de conexión. Verifica tu internet e intenta de nuevo.', true);
   } finally {
-    btn.classList.remove('loading'); btn.textContent = 'Ingresar';
+    btn.disabled = false;
+    btn.classList.remove('loading');
+    btn.textContent = 'Ingresar';
   }
 }
 
