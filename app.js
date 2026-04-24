@@ -45,7 +45,10 @@ Por favor selecciona una opción 👇`;
 
     try {
         await sockGlobal.sendMessage(numeroWA, {
-            text: mensajeAlerta + `\n\n*1️⃣* Sí, fui yo ✅\n*2️⃣* No, bloquear cuenta 🔒\n\nResponde *1* o *2*`
+            text: mensajeAlerta + `\n\n*1.* Sí, fui yo
+*2.* No, bloquear mi cuenta
+
+Responde *1* o *2*`
         });
 
         // Si no tenemos cédula, pedir que la ingrese (no podemos identificarlos sin ella)
@@ -245,14 +248,14 @@ async function enviarMenuPrincipal(jid, identificado = false, nombre = null) {
 
 ${pie}
 
-*1️⃣* 📊 Análisis crediticio
-*2️⃣* 💳 Movimientos
-*3️⃣* 🏦 Simulación de crédito
-*4️⃣* 💼 Posición salarial
-*5️⃣* 📝 PQR (Peticiones, Quejas o Reclamos)
-*6️⃣* 🎁 Solicitar producto
+*1.* Análisis crediticio
+*2.* Movimientos
+*3.* Simulación de crédito
+*4.* Posición salarial
+*5.* PQR (Peticiones, Quejas o Reclamos)
+*6.* Solicitar producto
 
-_Responde con el número o escribe tu consulta directamente_ 😊`
+_Responde con el número o escribe tu consulta directamente_`
     });
 }
 
@@ -282,7 +285,10 @@ Detectamos una transacción inusual en tu cuenta:
 ¿Fuiste tú quien realizó esta transacción?`;
 
     if (sockGlobal) {
-        const textoAlerta = mensajeAlerta + `\n\n*1️⃣* Sí, fui yo ✅\n*2️⃣* No, bloquear cuenta 🔒\n\nResponde *1* o *2*`;
+        const textoAlerta = mensajeAlerta + `\n\n*1.* Sí, fui yo
+*2.* No, bloquear mi cuenta
+
+Responde *1* o *2*`;
         await sockGlobal.sendMessage(numeroWhatsApp, { text: textoAlerta });
         if (telefonoRegistrado && telefonoRegistrado !== numeroWhatsApp) {
             await sockGlobal.sendMessage(telefonoRegistrado, { text: textoAlerta });
@@ -331,7 +337,8 @@ REGLAS DE COMPORTAMIENTO
 • Para CUALQUIER análisis financiero: usa consultar_bigquery. NO respondas con datos inventados.
 • Construye las queries de forma DINÁMICA según lo que pide el usuario.
 • Si detectas fraude o transacción inusual: usa registrar_alerta_fraude.
-• Para consultar el saldo actual usa el campo saldo_actual de la TABLA 1.
+• SALDO: NUNCA muestres saldo_actual espontáneamente al informar sobre el estado de cuenta o información general. Solo muéstralo si el cliente pregunta EXPLÍCITAMENTE por su saldo ("cuál es mi saldo", "cuánto tengo", "consultar saldo").
+• DESBLOQUEO DE CUENTA: Si el cliente pide desbloquear su cuenta, usa la función actualizar_estado_cuenta para cambiar estado_cuenta a 'ACTIVA'. Solo permite el desbloqueo si el estado actual es 'INVESTIGACION' (no si es 'BLOQUEADA' por fraude confirmado — en ese caso indica que debe llamar al 018000-QUIND). Confirma al cliente que su cuenta quedó activa.
 
 ════════════════════════════════════
 SOLICITUD DE PRODUCTOS — REGLAS DE ASIGNACIÓN DE CUPO
@@ -406,6 +413,24 @@ NO incluyas instrucciones sobre botones — el sistema los agrega automáticamen
                         detalle:        { type: "STRING", description: "Descripción del movimiento sospechoso" }
                     },
                     required: ["monto"]
+                }
+            },
+            {
+                name: "actualizar_estado_cuenta",
+                description: "Actualiza el estado de la cuenta del cliente en BigQuery. Usar para desbloquear una cuenta en INVESTIGACION (→ ACTIVA). NO usar para desbloquear cuentas en estado BLOQUEADA por fraude confirmado.",
+                parameters: {
+                    type: "OBJECT",
+                    properties: {
+                        nuevo_estado: {
+                            type: "STRING",
+                            description: "Nuevo estado: ACTIVA | INVESTIGACION | BLOQUEADA"
+                        },
+                        motivo: {
+                            type: "STRING",
+                            description: "Motivo del cambio de estado (para logs)"
+                        }
+                    },
+                    required: ["nuevo_estado"]
                 }
             },
             {
@@ -488,6 +513,38 @@ NO incluyas instrucciones sobre botones — el sistema los agrega automáticamen
                     };
                 }
                 resultado = { registrado: true, mensaje: "Alerta de fraude registrada." };
+
+            } else if (name === 'actualizar_estado_cuenta') {
+                if (!sesion.cedula) {
+                    resultado = { exito: false, error: 'No hay cédula en sesión para actualizar' };
+                } else {
+                    const estadoActualRows = await ejecutarQueryBigQuery(`
+                        SELECT estado_cuenta FROM \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\`
+                        WHERE cedula = '${sesion.cedula}' LIMIT 1
+                    `);
+                    const estadoActual = estadoActualRows.filas?.[0]?.estado_cuenta;
+
+                    // No permitir desbloqueo si está BLOQUEADA por fraude confirmado
+                    if (args.nuevo_estado === 'ACTIVA' && estadoActual === 'BLOQUEADA') {
+                        resultado = {
+                            exito:   false,
+                            bloqueada_fraude: true,
+                            mensaje: 'Cuenta bloqueada por fraude confirmado. El cliente debe llamar al 018000-QUIND.'
+                        };
+                    } else {
+                        const bq = await ejecutarQueryBigQuery(`
+                            UPDATE \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\`
+                            SET estado_cuenta = '${args.nuevo_estado}'
+                            WHERE cedula = '${sesion.cedula}'
+                        `);
+                        if (bq.exito) {
+                            console.log(`✅ Estado cuenta ${sesion.cedula}: ${estadoActual} → ${args.nuevo_estado} | motivo: ${args.motivo || 'solicitud del cliente'}`);
+                            resultado = { exito: true, estado_anterior: estadoActual, estado_nuevo: args.nuevo_estado };
+                        } else {
+                            resultado = { exito: false, error: bq.error };
+                        }
+                    }
+                }
 
             } else if (name === 'solicitar_producto') {
                 // Guardar resultado del producto para registrarlo en BQ después
@@ -700,7 +757,10 @@ async function conectarWhatsApp() {
                         sesion.alertaFraude.cedula = cedulaEnTexto;
                         alertasPorCedula.set(cedulaEnTexto, sesion.alertaFraude);
                         await sock.sendMessage(numeroUsuario, {
-                            text: `✅ Identidad verificada, *${cliente.nombres}*.\n\n¿Esta transferencia fue realizada por ti?\n\n*1️⃣* Sí, fui yo ✅\n*2️⃣* No, bloquear cuenta 🔒\n\nResponde *1* o *2*`
+                            text: `✅ Identidad verificada, *${cliente.nombres}*.\n\n¿Esta transferencia fue realizada por ti?\n\n*1.* Sí, fui yo
+*2.* No, bloquear mi cuenta
+
+Responde *1* o *2*`
                         });
                     } else {
                         await sock.sendMessage(numeroUsuario, {
@@ -818,7 +878,7 @@ async function conectarWhatsApp() {
 
             // Respuesta no reconocida — recordar opciones en texto plano
             await sock.sendMessage(numeroUsuario, {
-                text: `No reconocí tu respuesta. Por favor responde:\n\n*1️⃣* Sí, fui yo ✅\n*2️⃣* No, bloquear cuenta 🔒\n\nEscribe *1* o *2*`
+                text: `No reconocí tu respuesta. Por favor responde:\n\n*1.* Sí, fui yo\n*2.* No, bloquear mi cuenta\n\nEscribe *1* o *2*`
             });
             return;
         }
