@@ -992,12 +992,15 @@ function switchTab(tab) {
 // ═══════════════════════════════════════════
 async function doLogin() {
   const cedula = document.getElementById('login-cedula').value.trim();
-  const pin    = getPIN('.pin-digit');
-  showMsg('login-error', '', false); showMsg('login-success', '', false);
-  if (!cedula) return showMsg('login-error', 'Ingresa tu número de cédula', true);
+  const pin    = document.getElementById('login-pin').value.trim();
+  const btn    = document.getElementById('btn-login');
+
+  showMsg('login-error', '', false);
+  showMsg('login-success', '', false);
+
+  if (!cedula)          return showMsg('login-error', 'Ingresa tu número de cédula', true);
   if (pin.length !== 4) return showMsg('login-error', 'Ingresa tu PIN de 4 dígitos', true);
 
-  const btn = document.getElementById('btn-login');
   btn.classList.add('loading'); btn.textContent = 'Verificando...';
   try {
     const res  = await fetch('/api/auth/login', {
@@ -1005,10 +1008,12 @@ async function doLogin() {
       body: JSON.stringify({ cedula, pin })
     });
     const data = await res.json();
-    if (!res.ok) return showMsg('login-error', data.error || 'Error al ingresar', true);
+    if (!res.ok) {
+      showMsg('login-error', data.error || 'Cédula o PIN incorrectos', true);
+      return;
+    }
     session = data.cliente;
-    // saldo_promedio_cuentas viene del login response
-    if (data.cliente.saldoPromedio === undefined) session.saldoPromedio = data.cliente.saldo;
+    if (session.saldoPromedio === undefined) session.saldoPromedio = session.saldo;
     renderDashboard();
     showScreen('screen-dashboard');
     cargarMovimientos();
@@ -1016,40 +1021,53 @@ async function doLogin() {
       setTimeout(() => showAlert('warning', 'Nuevo dispositivo detectado',
         'Detectamos un acceso desde un dispositivo diferente. Si no fuiste tú, cambia tu PIN.', 8000), 1000);
     }
-  } catch { showMsg('login-error', 'Error de conexión. Intenta de nuevo.', true);
-  } finally { btn.classList.remove('loading'); btn.textContent = 'Ingresar'; }
+  } catch (err) {
+    console.error('Login error:', err);
+    showMsg('login-error', 'Error de conexión. Intenta de nuevo.', true);
+  } finally {
+    btn.classList.remove('loading'); btn.textContent = 'Ingresar';
+  }
 }
 
 // ═══════════════════════════════════════════
 // AUTH: REGISTRO
 // ═══════════════════════════════════════════
 async function doRegistro() {
-  const campos = {
-    nombres:   document.getElementById('reg-nombres').value.trim(),
-    apellidos: document.getElementById('reg-apellidos').value.trim(),
-    cedula:    document.getElementById('reg-cedula').value.trim(),
-    celular:   document.getElementById('reg-celular').value.trim(),
-    pin:       getPIN('.pin-digit-reg')
-  };
-  showMsg('reg-error', '', false); showMsg('reg-success', '', false);
-  if (!campos.nombres || !campos.apellidos || !campos.cedula || !campos.celular)
-    return showMsg('reg-error', 'Todos los campos son obligatorios', true);
-  if (campos.pin.length !== 4) return showMsg('reg-error', 'El PIN debe ser de 4 dígitos', true);
+  const nombres   = document.getElementById('reg-nombres').value.trim();
+  const apellidos = document.getElementById('reg-apellidos').value.trim();
+  const cedula    = document.getElementById('reg-cedula').value.trim();
+  const celular   = document.getElementById('reg-celular').value.trim();
+  const pin       = document.getElementById('reg-pin').value.trim();
+  const btn       = document.getElementById('btn-registro');
 
-  const btn = document.getElementById('btn-registro');
+  showMsg('reg-error', '', false);
+  showMsg('reg-success', '', false);
+
+  if (!nombres || !apellidos || !cedula || !celular)
+    return showMsg('reg-error', 'Todos los campos son obligatorios', true);
+  if (pin.length !== 4)
+    return showMsg('reg-error', 'El PIN debe ser de 4 dígitos', true);
+
   btn.classList.add('loading'); btn.textContent = 'Creando cuenta...';
   try {
     const res  = await fetch('/api/auth/registro', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(campos)
+      body: JSON.stringify({ nombres, apellidos, cedula, celular, pin })
     });
     const data = await res.json();
-    if (!res.ok) return showMsg('reg-error', data.error || 'Error al registrar', true);
+    if (!res.ok) {
+      showMsg('reg-error', data.error || 'Error al registrar', true);
+      return;
+    }
     showMsg('reg-success',
-      `✅ ¡Cuenta creada! Tu número de cuenta es: ${data.numeroCuenta}. Saldo inicial: $50,000 COP`, true);
+      `Cuenta creada. Tu número de cuenta es: ${data.numeroCuenta}. Saldo inicial: $50,000 COP`, true);
     setTimeout(() => switchTab('login'), 4000);
-  } catch { showMsg('reg-error', 'Error de conexión. Intenta de nuevo.', true);
-  } finally { btn.classList.remove('loading'); btn.textContent = 'Crear mi cuenta'; }
+  } catch (err) {
+    console.error('Registro error:', err);
+    showMsg('reg-error', 'Error de conexión. Intenta de nuevo.', true);
+  } finally {
+    btn.classList.remove('loading'); btn.textContent = 'Crear mi cuenta';
+  }
 }
 
 // ═══════════════════════════════════════════
