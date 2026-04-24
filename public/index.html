@@ -322,6 +322,118 @@
   .btn-secondary { width: 100%; padding: 14px; background: var(--gray-100); color: var(--gray-700); border: none; border-radius: var(--r-sm); font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; transition: all .2s; margin-top: 10px; }
   .btn-secondary:hover { background: var(--gray-200); }
 
+  /* ══ TARJETAS DE CRÉDITO ══════════════════════════════════════ */
+
+  /* Sección productos en dashboard */
+  .productos-section { margin-bottom: 24px; }
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .section-title { font-size: 16px; font-weight: 700; color: var(--gray-700); }
+  .section-link  { font-size: 13px; color: var(--navy-lt); font-weight: 500; cursor: pointer; text-decoration: none; }
+  .section-link:hover { text-decoration: underline; }
+
+  /* Grid de tarjetas de crédito */
+  .credit-cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+  /* Tarjeta bancaria visual */
+  .credit-card {
+    border-radius: 20px; padding: 24px 20px 20px;
+    position: relative; overflow: hidden; cursor: pointer;
+    transition: transform .25s, box-shadow .25s;
+    min-height: 180px; display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .credit-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+
+  .credit-card.platino {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+  }
+  .credit-card.black {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+    color: white;
+  }
+  .credit-card.gold {
+    background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
+    color: #1a1200;
+  }
+
+  .credit-card::before {
+    content: '';
+    position: absolute; top: -30px; right: -30px;
+    width: 120px; height: 120px; border-radius: 50%;
+    background: rgba(255,255,255,.08);
+  }
+  .credit-card::after {
+    content: '';
+    position: absolute; top: 10px; right: 30px;
+    width: 70px; height: 70px; border-radius: 50%;
+    background: rgba(255,255,255,.06);
+  }
+
+  .cc-tier   { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; opacity: .75; }
+  .cc-name   { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800; margin: 4px 0 12px; }
+  .cc-benefit-main {
+    font-size: 13px; font-weight: 600;
+    background: rgba(255,255,255,.18); border-radius: 8px;
+    padding: 6px 10px; display: inline-block; margin-bottom: 10px;
+  }
+  .credit-card.gold .cc-benefit-main { background: rgba(0,0,0,.12); }
+  .cc-benefits { display: flex; flex-direction: column; gap: 4px; }
+  .cc-benefit  { font-size: 11px; opacity: .85; display: flex; align-items: center; gap: 5px; }
+  .cc-benefit::before { content: '✓'; font-weight: 700; opacity: 1; flex-shrink: 0; }
+  .cc-badge {
+    position: absolute; top: 14px; right: 14px;
+    background: rgba(255,255,255,.25); border-radius: 8px;
+    padding: 3px 8px; font-size: 10px; font-weight: 700; text-transform: uppercase;
+  }
+  .credit-card.gold .cc-badge { background: rgba(0,0,0,.15); }
+
+  /* Modal de solicitud — selección de tarjeta */
+  .tarjeta-selector { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .tarjeta-option {
+    border: 2px solid var(--gray-200); border-radius: var(--r-md);
+    padding: 16px 18px; cursor: pointer; transition: all .2s;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .tarjeta-option:hover   { border-color: var(--navy); background: var(--gray-50); }
+  .tarjeta-option.selected { border-color: var(--navy); background: #EBF1FF; }
+  .tarjeta-option .to-color {
+    width: 44px; height: 28px; border-radius: 6px; flex-shrink: 0;
+  }
+  .to-color.platino { background: linear-gradient(135deg, #667eea, #764ba2); }
+  .to-color.black   { background: linear-gradient(135deg, #1a1a2e, #0f3460); }
+  .to-color.gold    { background: linear-gradient(135deg, #f7971e, #ffd200); }
+  .tarjeta-option .to-info { flex: 1; }
+  .tarjeta-option .to-name { font-size: 14px; font-weight: 700; color: var(--gray-700); }
+  .tarjeta-option .to-desc { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+  .tarjeta-option .to-tag  {
+    font-size: 11px; font-weight: 700; padding: 3px 10px;
+    border-radius: 99px; flex-shrink: 0;
+  }
+  .to-tag.puntos   { background: #ede9fe; color: #6d28d9; }
+  .to-tag.cashback { background: #d1fae5; color: #065f46; }
+  .to-tag.gratis   { background: #fef3c7; color: #92400e; }
+
+  /* Tabla comparativa en modal */
+  .comparativa { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 16px; }
+  .comparativa th { background: var(--gray-50); padding: 8px 12px; text-align: left; font-weight: 600; color: var(--gray-500); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+  .comparativa td { padding: 10px 12px; border-bottom: 1px solid var(--gray-100); color: var(--gray-700); }
+  .comparativa tr:last-child td { border-bottom: none; }
+  .comparativa .chk  { color: var(--green); font-weight: 700; }
+  .comparativa .dash { color: var(--gray-200); }
+  .comparativa .highlighted td { background: #EBF1FF; }
+
+  /* Resultado tarjeta aprobada */
+  .tarjeta-aprobada {
+    border-radius: 16px; padding: 24px; text-align: center; margin-bottom: 16px;
+    color: white;
+  }
+  .tarjeta-aprobada.platino { background: linear-gradient(135deg, #667eea, #764ba2); }
+  .tarjeta-aprobada.black   { background: linear-gradient(135deg, #1a1a2e, #0f3460); }
+  .tarjeta-aprobada.gold    { background: linear-gradient(135deg, #f7971e, #ffd200); color: #1a1200; }
+  .tarjeta-aprobada .ta-nombre { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; }
+  .tarjeta-aprobada .ta-cupo   { font-size: 13px; opacity: .8; margin-top: 4px; }
+  .tarjeta-aprobada .ta-cupo strong { font-size: 28px; font-weight: 800; display: block; margin-top: 4px; opacity: 1; }
+
   /* ══ PRODUCTOS ══════════════════════════════════════════════ */
   .productos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 12px; }
   .producto-card {
@@ -349,14 +461,12 @@
   .pr-badge { padding: 4px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; background: var(--gray-100); color: var(--gray-700); }
 
   @media (max-width: 700px) {
-    .quick-actions   { grid-template-columns: repeat(3, 1fr); }
-    .cards-grid      { grid-template-columns: 1fr; }
-    .productos-grid  { grid-template-columns: 1fr; }
-    .hero-saldo      { font-size: 32px; }
-    .auth-card       { padding: 28px 22px; }
-  }
-  @media (max-width: 480px) {
-    .quick-actions { grid-template-columns: repeat(2, 1fr); }
+    .quick-actions      { grid-template-columns: repeat(2, 1fr); }
+    .cards-grid         { grid-template-columns: 1fr; }
+    .productos-grid     { grid-template-columns: 1fr; }
+    .credit-cards-grid  { grid-template-columns: 1fr; }
+    .hero-saldo         { font-size: 32px; }
+    .auth-card          { padding: 28px 22px; }
   }
 </style>
 </head>
@@ -511,6 +621,59 @@
       </div>
     </div>
 
+    <!-- Sección Tarjetas de Crédito -->
+    <div class="productos-section">
+      <div class="section-header">
+        <div class="section-title">Tarjetas de crédito</div>
+        <span class="section-link" onclick="abrirProductos()">Solicitar una →</span>
+      </div>
+      <div class="credit-cards-grid">
+
+        <div class="credit-card platino" onclick="abrirProductos('TARJETA_PLATINO')">
+          <div class="cc-badge">Premium</div>
+          <div>
+            <div class="cc-tier">Banco QUIND</div>
+            <div class="cc-name">Platino</div>
+            <div class="cc-benefit-main">★ Acumula Puntos Colombia</div>
+          </div>
+          <div class="cc-benefits">
+            <div class="cc-benefit">2 pts por cada $1.000 gastado</div>
+            <div class="cc-benefit">Seguro de viaje incluido</div>
+            <div class="cc-benefit">Salas VIP aeropuertos</div>
+          </div>
+        </div>
+
+        <div class="credit-card black" onclick="abrirProductos('TARJETA_BLACK')">
+          <div class="cc-badge">Exclusiva</div>
+          <div>
+            <div class="cc-tier">Banco QUIND</div>
+            <div class="cc-name">Black</div>
+            <div class="cc-benefit-main">💵 2% Cashback en todo</div>
+          </div>
+          <div class="cc-benefits">
+            <div class="cc-benefit">Cashback directo a cuenta</div>
+            <div class="cc-benefit">Concierge 24/7</div>
+            <div class="cc-benefit">Cupo hasta $15.000.000</div>
+          </div>
+        </div>
+
+        <div class="credit-card gold" onclick="abrirProductos('TARJETA_GOLD')">
+          <div class="cc-badge">Popular</div>
+          <div>
+            <div class="cc-tier">Banco QUIND</div>
+            <div class="cc-name">Gold</div>
+            <div class="cc-benefit-main">0 Cuota de manejo</div>
+          </div>
+          <div class="cc-benefits">
+            <div class="cc-benefit">Sin cuota de manejo siempre</div>
+            <div class="cc-benefit">Compras en cuotas sin interés</div>
+            <div class="cc-benefit">App control de gastos</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
     <!-- Movimientos -->
     <div class="movimientos-card">
       <div class="mv-header">
@@ -574,46 +737,137 @@
      MODAL SOLICITAR PRODUCTO
 ══════════════════════════════════════════ -->
 <div id="modal-productos" class="modal-overlay">
-  <div class="modal">
+  <div class="modal" style="max-width:560px;">
     <div class="modal-header">
-      <h2>🎁 Solicitar producto</h2>
+      <h2>Solicitar producto</h2>
       <button class="modal-close" onclick="cerrarProductos()">✕</button>
     </div>
-    <div id="prod-step-selector">
+
+    <!-- PASO 1: Selector de tipo -->
+    <div id="prod-step-tipo">
       <div class="modal-body">
         <p style="font-size:14px;color:var(--gray-500);margin-bottom:20px;">
-          Selecciona el producto que deseas solicitar. Evaluaremos tu perfil en tiempo real.
+          ¿Qué tipo de producto te interesa?
         </p>
         <div class="productos-grid">
-          <div class="producto-card" id="pc-tarjeta" onclick="seleccionarProducto('TARJETA_CREDITO')">
+          <div class="producto-card" id="pc-tarjeta" onclick="seleccionarTipoProd('TARJETA_CREDITO')">
             <div class="prod-icon">💳</div>
             <div class="prod-name">Tarjeta de Crédito</div>
-            <div class="prod-desc">Cupo rotativo según tu perfil financiero</div>
+            <div class="prod-desc">Elige entre Gold, Platino o Black</div>
           </div>
-          <div class="producto-card" id="pc-consumo" onclick="seleccionarProducto('CREDITO_CONSUMO')">
+          <div class="producto-card" id="pc-consumo" onclick="seleccionarTipoProd('CREDITO_CONSUMO')">
             <div class="prod-icon">💰</div>
             <div class="prod-name">Crédito de Consumo</div>
-            <div class="prod-desc">Hasta 36 meses para tus proyectos</div>
+            <div class="prod-desc">Hasta 36 meses</div>
           </div>
-          <div class="producto-card" id="pc-vivienda" onclick="seleccionarProducto('CREDITO_VIVIENDA')">
+          <div class="producto-card" id="pc-vivienda" onclick="seleccionarTipoProd('CREDITO_VIVIENDA')">
             <div class="prod-icon">🏠</div>
             <div class="prod-name">Crédito de Vivienda</div>
-            <div class="prod-desc">Hasta 15 años para tu hogar</div>
+            <div class="prod-desc">Hasta 15 años</div>
           </div>
         </div>
-        <div id="prod-error" class="msg-error"></div>
       </div>
       <div class="modal-footer">
-        <button class="btn-primary" id="btn-solicitar" onclick="ejecutarSolicitudProducto()">Evaluar mi perfil</button>
+        <button class="btn-primary" id="btn-tipo-next" onclick="irPasoTarjeta()">Continuar</button>
         <button class="btn-secondary" onclick="cerrarProductos()">Cancelar</button>
       </div>
     </div>
 
+    <!-- PASO 2: Selector de tarjeta (solo si eligió tarjeta) -->
+    <div id="prod-step-tarjeta" style="display:none;">
+      <div class="modal-body">
+        <p style="font-size:14px;color:var(--gray-500);margin-bottom:16px;">
+          Elige la tarjeta que más te conviene:
+        </p>
+
+        <div class="tarjeta-selector">
+          <div class="tarjeta-option" id="to-gold" onclick="seleccionarTarjeta('TARJETA_GOLD')">
+            <div class="to-color gold"></div>
+            <div class="to-info">
+              <div class="to-name">Gold</div>
+              <div class="to-desc">Sin cuota de manejo · Cuotas sin interés · App control gastos</div>
+            </div>
+            <span class="to-tag gratis">0 cuota</span>
+          </div>
+          <div class="tarjeta-option" id="to-platino" onclick="seleccionarTarjeta('TARJETA_PLATINO')">
+            <div class="to-color platino"></div>
+            <div class="to-info">
+              <div class="to-name">Platino</div>
+              <div class="to-desc">2 pts/$1.000 · Seguro de viaje · Salas VIP aeropuertos</div>
+            </div>
+            <span class="to-tag puntos">Puntos Colombia</span>
+          </div>
+          <div class="tarjeta-option" id="to-black" onclick="seleccionarTarjeta('TARJETA_BLACK')">
+            <div class="to-color black"></div>
+            <div class="to-info">
+              <div class="to-name">Black</div>
+              <div class="to-desc">2% cashback · Concierge 24/7 · Cupo hasta $15M</div>
+            </div>
+            <span class="to-tag cashback">2% Cashback</span>
+          </div>
+        </div>
+
+        <!-- Comparativa -->
+        <table class="comparativa" style="margin-top:20px;">
+          <thead>
+            <tr>
+              <th>Beneficio</th>
+              <th>Gold</th>
+              <th>Platino</th>
+              <th>Black</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Sin cuota de manejo</td>
+              <td class="chk">✓</td><td class="dash">—</td><td class="dash">—</td>
+            </tr>
+            <tr>
+              <td>Puntos Colombia</td>
+              <td class="dash">—</td><td class="chk">2 pts/$1.000</td><td class="dash">—</td>
+            </tr>
+            <tr>
+              <td>Cashback</td>
+              <td class="dash">—</td><td class="dash">—</td><td class="chk">2%</td>
+            </tr>
+            <tr>
+              <td>Seguro de viaje</td>
+              <td class="dash">—</td><td class="chk">✓</td><td class="chk">✓</td>
+            </tr>
+            <tr>
+              <td>Salas VIP</td>
+              <td class="dash">—</td><td class="chk">✓</td><td class="chk">✓</td>
+            </tr>
+            <tr>
+              <td>Concierge 24/7</td>
+              <td class="dash">—</td><td class="dash">—</td><td class="chk">✓</td>
+            </tr>
+            <tr>
+              <td>Cupo máximo</td>
+              <td>$3.000.000</td><td>$8.000.000</td><td>$15.000.000</td>
+            </tr>
+            <tr>
+              <td>Perfil mínimo</td>
+              <td>Básico</td><td>Medio</td><td>Alto</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div id="prod-tarjeta-error" class="msg-error" style="margin-top:12px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-primary" id="btn-solicitar" onclick="ejecutarSolicitudProducto()">Evaluar mi perfil</button>
+        <button class="btn-secondary" onclick="volverPasoTipo()">Volver</button>
+      </div>
+    </div>
+
+    <!-- RESULTADO -->
     <div id="prod-step-result" style="display:none; padding: 28px 28px 32px;">
       <div id="prod-result-content"></div>
       <button class="btn-primary"   style="margin-top:16px;" onclick="cerrarProductos()">Volver al inicio</button>
-      <button class="btn-secondary" onclick="resetProductos()">Solicitar otro producto</button>
+      <button class="btn-secondary" onclick="resetProductos()">Solicitar otro</button>
     </div>
+
   </div>
 </div>
 
@@ -917,78 +1171,167 @@ async function ejecutarTransferencia() {
 }
 
 // ═══════════════════════════════════════════
-// SOLICITAR PRODUCTO
+// CATÁLOGO DE TARJETAS
 // ═══════════════════════════════════════════
-function abrirProductos() {
+const TARJETAS = {
+  TARJETA_GOLD: {
+    nombre: 'Gold', clase: 'gold',
+    nivelMinimo: 'BASICO',
+    cupoMax: 3_000_000,
+    beneficios: ['Sin cuota de manejo', 'Cuotas sin interés', 'App control de gastos'],
+    tag: '0 cuota de manejo',
+    descripcion: 'Ideal si buscas practicidad sin costos fijos.'
+  },
+  TARJETA_PLATINO: {
+    nombre: 'Platino', clase: 'platino',
+    nivelMinimo: 'MEDIO',
+    cupoMax: 8_000_000,
+    beneficios: ['2 pts Puntos Colombia por $1.000', 'Seguro de viaje incluido', 'Salas VIP aeropuertos'],
+    tag: 'Puntos Colombia',
+    descripcion: 'Perfecta para viajeros frecuentes y compradores habituales.'
+  },
+  TARJETA_BLACK: {
+    nombre: 'Black', clase: 'black',
+    nivelMinimo: 'ALTO',
+    cupoMax: 15_000_000,
+    beneficios: ['2% Cashback en todas las compras', 'Concierge personal 24/7', 'Cupo hasta $15.000.000'],
+    tag: '2% Cashback',
+    descripcion: 'La experiencia premium para perfiles de alto valor.'
+  }
+};
+
+// ═══════════════════════════════════════════
+// SOLICITAR PRODUCTO — flujo multi-paso
+// ═══════════════════════════════════════════
+let tipoProdSeleccionado   = null;
+let tarjetaSeleccionada    = null;
+let productoSeleccionado   = null; // alias para compatibilidad
+
+function abrirProductos(tarjetaPresel = null) {
   resetProductos();
   document.getElementById('modal-productos').classList.add('open');
+  if (tarjetaPresel && tarjetaPresel.startsWith('TARJETA_')) {
+    // Vino desde una tarjeta del dashboard — ir directo al paso 2
+    tipoProdSeleccionado = 'TARJETA_CREDITO';
+    seleccionarTarjeta(tarjetaPresel);
+    irPasoTarjeta(true);
+  }
 }
+
 function cerrarProductos() {
   document.getElementById('modal-productos').classList.remove('open');
   resetProductos();
 }
+
 function resetProductos() {
+  tipoProdSeleccionado = null;
+  tarjetaSeleccionada  = null;
   productoSeleccionado = null;
-  document.querySelectorAll('.producto-card').forEach(c => c.classList.remove('selected'));
-  document.getElementById('prod-step-selector').style.display = 'block';
+  document.querySelectorAll('.producto-card, .tarjeta-option').forEach(c => c.classList.remove('selected'));
+  document.getElementById('prod-step-tipo').style.display     = 'block';
+  document.getElementById('prod-step-tarjeta').style.display  = 'none';
   document.getElementById('prod-step-result').style.display   = 'none';
-  showMsg('prod-error', '', false);
+  showMsg('prod-tarjeta-error', '', false);
 }
-function seleccionarProducto(tipo) {
-  productoSeleccionado = tipo;
+
+function seleccionarTipoProd(tipo) {
+  tipoProdSeleccionado = tipo;
   document.querySelectorAll('.producto-card').forEach(c => c.classList.remove('selected'));
   const mapa = { TARJETA_CREDITO: 'pc-tarjeta', CREDITO_CONSUMO: 'pc-consumo', CREDITO_VIVIENDA: 'pc-vivienda' };
-  document.getElementById(mapa[tipo]).classList.add('selected');
-  showMsg('prod-error', '', false);
+  document.getElementById(mapa[tipo])?.classList.add('selected');
 }
+
+function irPasoTarjeta(skip = false) {
+  if (!skip && !tipoProdSeleccionado) {
+    return showAlert('warning', 'Selecciona un producto', 'Elige el tipo de producto para continuar.', 3000);
+  }
+  if (tipoProdSeleccionado !== 'TARJETA_CREDITO') {
+    // Crédito consumo o vivienda — ejecutar directo
+    productoSeleccionado = tipoProdSeleccionado;
+    ejecutarSolicitudProducto();
+    return;
+  }
+  document.getElementById('prod-step-tipo').style.display    = 'none';
+  document.getElementById('prod-step-tarjeta').style.display = 'block';
+}
+
+function volverPasoTipo() {
+  tarjetaSeleccionada = null;
+  document.getElementById('prod-step-tarjeta').style.display = 'none';
+  document.getElementById('prod-step-tipo').style.display    = 'block';
+}
+
+function seleccionarTarjeta(tipo) {
+  tarjetaSeleccionada  = tipo;
+  productoSeleccionado = tipo; // compatibilidad con el endpoint
+  document.querySelectorAll('.tarjeta-option').forEach(c => c.classList.remove('selected'));
+  const mapa = { TARJETA_GOLD: 'to-gold', TARJETA_PLATINO: 'to-platino', TARJETA_BLACK: 'to-black' };
+  document.getElementById(mapa[tipo])?.classList.add('selected');
+  showMsg('prod-tarjeta-error', '', false);
+}
+
+// Mantener compatibilidad con el handler antiguo
+function seleccionarProducto(tipo) { seleccionarTipoProd(tipo); }
+
 async function ejecutarSolicitudProducto() {
-  if (!productoSeleccionado) return showMsg('prod-error', 'Selecciona un producto primero', true);
+  const prod = productoSeleccionado || tipoProdSeleccionado;
+  if (!prod) return showMsg('prod-tarjeta-error', 'Selecciona una tarjeta primero', true);
   if (!session) return;
 
   const btn = document.getElementById('btn-solicitar');
-  btn.classList.add('loading'); btn.textContent = 'Evaluando perfil...';
+  if (btn) { btn.classList.add('loading'); btn.textContent = 'Evaluando perfil...'; }
+
   try {
     const res  = await fetch('/api/solicitar-producto', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cedula: session.cedula, tipoProducto: productoSeleccionado })
+      body: JSON.stringify({ cedula: session.cedula, tipoProducto: prod })
     });
     const data = await res.json();
 
-    document.getElementById('prod-step-selector').style.display = 'none';
-    document.getElementById('prod-step-result').style.display   = 'block';
+    // Ocultar todos los pasos y mostrar resultado
+    document.getElementById('prod-step-tipo').style.display    = 'none';
+    document.getElementById('prod-step-tarjeta').style.display = 'none';
+    document.getElementById('prod-step-result').style.display  = 'block';
 
-    const nombresProd = { TARJETA_CREDITO: 'Tarjeta de Crédito', CREDITO_CONSUMO: 'Crédito de Consumo', CREDITO_VIVIENDA: 'Crédito de Vivienda' };
-    const nombreProd  = nombresProd[productoSeleccionado] || productoSeleccionado;
+    const info = TARJETAS[prod];
 
     if (data.aprobado) {
+      const clase   = info?.clase || 'platino';
+      const nombre  = info?.nombre || prod;
+      const bens    = (info?.beneficios || []).map(b => `<li style="margin-bottom:4px;">✓ ${b}</li>`).join('');
       document.getElementById('prod-result-content').innerHTML = `
-        <div class="prod-result aprobado">
-          <div class="pr-icon">🎉</div>
-          <div class="pr-title">¡${nombreProd} Aprobado!</div>
-          <div class="pr-cupo">${fmt(data.cupo)}</div>
-          <div class="pr-motivo">${data.motivo}</div>
-          <div class="pr-badges">
-            <span class="pr-badge">Perfil ${data.nivel}</span>
-            <span class="pr-badge">CPM: ${fmt(data.cpm)}/mes</span>
-          </div>
+        <div class="tarjeta-aprobada ${clase}">
+          <div style="font-size:11px;opacity:.7;text-transform:uppercase;letter-spacing:.1em;">Banco QUIND</div>
+          <div class="ta-nombre">${nombre}</div>
+          <div class="ta-cupo">Cupo aprobado<strong>${fmt(data.cupo)}</strong></div>
         </div>
-        <p style="font-size:13px;color:var(--gray-500);margin-top:14px;text-align:center;">
-          Un asesor se comunicará contigo en las próximas 24h para formalizar el producto. 
-          También puedes continuar el proceso con <strong>QuindBot</strong> en WhatsApp.
+        <div style="background:var(--gray-50);border-radius:var(--r-sm);padding:16px;margin-top:14px;">
+          <div style="font-size:12px;font-weight:700;color:var(--gray-500);text-transform:uppercase;margin-bottom:10px;">Tus beneficios</div>
+          <ul style="list-style:none;font-size:13px;color:var(--gray-700);">${bens}</ul>
+        </div>
+        <p style="font-size:12px;color:var(--gray-500);margin-top:14px;text-align:center;">
+          Un asesor se comunicará en las próximas 24h. También puedes gestionar con <strong>QuindBot</strong> en WhatsApp.
         </p>`;
     } else {
+      // Ver qué tarjeta sí podría calificar
+      const sugerencia = data.nivel === 'DENEGADO' && info?.clase === 'black'
+        ? '<br><br>Según tu perfil, podrías calificar para la tarjeta <strong>Gold</strong> o <strong>Platino</strong>. ¡Inténtalo!'
+        : '';
       document.getElementById('prod-result-content').innerHTML = `
         <div class="prod-result denegado">
           <div class="pr-icon">📋</div>
           <div class="pr-title">Solicitud no aprobada</div>
-          <div class="pr-motivo" style="margin-top:10px;">${data.motivo}</div>
+          <div class="pr-motivo" style="margin-top:10px;">${data.motivo}${sugerencia}</div>
         </div>
         <p style="font-size:13px;color:var(--gray-500);margin-top:14px;text-align:center;">
-          Habla con <strong>QuindBot</strong> en WhatsApp para conocer cómo mejorar tu perfil y cuándo volver a aplicar.
+          Habla con <strong>QuindBot</strong> para saber cómo mejorar tu perfil.
         </p>`;
     }
-  } catch { showMsg('prod-error', 'Error de conexión. Intenta de nuevo.', true);
-  } finally { btn.classList.remove('loading'); btn.textContent = 'Evaluar mi perfil'; }
+  } catch {
+    showMsg('prod-tarjeta-error', 'Error de conexión. Intenta de nuevo.', true);
+  } finally {
+    if (btn) { btn.classList.remove('loading'); btn.textContent = 'Evaluar mi perfil'; }
+  }
 }
 
 // ═══════════════════════════════════════════

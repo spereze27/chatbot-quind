@@ -136,18 +136,51 @@ async function evaluarProducto({ cedula, tipoProducto }) {
     const fechaReg      = cliente.fecha_registro ? new Date(cliente.fecha_registro.value || cliente.fecha_registro) : new Date();
     const mesesAntiguedad = Math.floor((Date.now() - fechaReg.getTime()) / (1000 * 60 * 60 * 24 * 30));
 
-    if (tipoProducto === 'TARJETA_CREDITO') {
+    if (tipoProducto === 'TARJETA_CREDITO' || tipoProducto === 'TARJETA_GOLD' ||
+        tipoProducto === 'TARJETA_PLATINO' || tipoProducto === 'TARJETA_BLACK') {
+
         const pctDeuda = cupo > 0 ? (deuda / cupo) : 0;
-        if (saldoProm > 5_000_000 && pctDeuda < 0.30 && mesesAntiguedad >= 1) {
-            return { aprobado: true, nivel: 'ALTO',   cupo: Math.min(15_000_000, cpm * 5), cpm, motivo: 'Perfil excelente' };
-        } else if (saldoProm > 2_000_000 && pctDeuda < 0.50) {
-            return { aprobado: true, nivel: 'MEDIO',  cupo: Math.min(8_000_000, cpm * 3),  cpm, motivo: 'Perfil medio' };
-        } else if (saldoProm > 500_000 && mesesAntiguedad >= 3) {
-            return { aprobado: true, nivel: 'BASICO', cupo: Math.min(3_000_000, cpm * 1.5),cpm, motivo: 'Perfil básico' };
-        } else {
+
+        // Determinar nivel de perfil
+        let nivel;
+        if      (saldoProm > 5_000_000 && pctDeuda < 0.30 && mesesAntiguedad >= 1) nivel = 'ALTO';
+        else if (saldoProm > 2_000_000 && pctDeuda < 0.50)                         nivel = 'MEDIO';
+        else if (saldoProm > 500_000   && mesesAntiguedad >= 3)                     nivel = 'BASICO';
+        else nivel = 'DENEGADO';
+
+        if (nivel === 'DENEGADO') {
             return { aprobado: false, nivel: 'DENEGADO', cupo: 0, cpm,
-                     motivo: `Saldo promedio insuficiente ($${saldoProm.toLocaleString('es-CO')}) o cuenta muy nueva (${mesesAntiguedad} meses)` };
+                     motivo: `Saldo promedio insuficiente (${Math.round(saldoProm/1000)}K) o cuenta muy nueva (${mesesAntiguedad} meses). Mínimo requerido: $500.000 de saldo promedio y 3 meses de antigüedad.` };
         }
+
+        // Reglas por tarjeta específica
+        const tarjetasConfig = {
+            TARJETA_GOLD:    { nivelMin: 'BASICO', cupoMax: 3_000_000,  multiplicador: 1.5, nombre: 'Gold'    },
+            TARJETA_PLATINO: { nivelMin: 'MEDIO',  cupoMax: 8_000_000,  multiplicador: 3,   nombre: 'Platino' },
+            TARJETA_BLACK:   { nivelMin: 'ALTO',   cupoMax: 15_000_000, multiplicador: 5,   nombre: 'Black'   },
+            TARJETA_CREDITO: { nivelMin: 'BASICO', cupoMax: 15_000_000, multiplicador: 3,   nombre: 'Crédito' }
+        };
+        const orden = ['BASICO', 'MEDIO', 'ALTO'];
+        const cfg   = tarjetasConfig[tipoProducto] || tarjetasConfig['TARJETA_CREDITO'];
+
+        if (orden.indexOf(nivel) < orden.indexOf(cfg.nivelMin)) {
+            // Perfil insuficiente para esa tarjeta — sugerir la que sí califica
+            const sugerida = nivel === 'BASICO' ? 'Gold' : nivel === 'MEDIO' ? 'Platino' : 'Black';
+            return { aprobado: false, nivel, cupo: 0, cpm,
+                     motivo: `Tu perfil (${nivel}) no cumple el mínimo para la tarjeta ${cfg.nombre}. Te recomendamos la tarjeta ${sugerida} que sí está disponible para tu nivel.` };
+        }
+
+        const cupoAprobado = Math.min(cfg.cupoMax, cpm * cfg.multiplicador);
+        const beneficiosPorTarjeta = {
+            TARJETA_GOLD:    'Sin cuota de manejo, cuotas sin interés y app de control de gastos.',
+            TARJETA_PLATINO: '2 Puntos Colombia por cada $1.000 gastado, seguro de viaje y acceso a salas VIP.',
+            TARJETA_BLACK:   '2% de cashback en todas las compras, concierge 24/7 y cupo hasta $15.000.000.',
+            TARJETA_CREDITO: 'Cupo rotativo según perfil financiero.'
+        };
+        return {
+            aprobado: true, nivel, cupo: cupoAprobado, cpm,
+            motivo: `Tarjeta ${cfg.nombre} aprobada para perfil ${nivel}. ${beneficiosPorTarjeta[tipoProducto] || ''}`
+        };
     }
 
     if (tipoProducto === 'CREDITO_CONSUMO') {
