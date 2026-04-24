@@ -153,11 +153,32 @@
   }
   .form-group input.error { border-color: var(--red); }
 
-  .pin-row { display: flex; gap: 10px; }
-  .pin-row input {
-    flex: 1; text-align: center; font-size: 22px;
-    padding: 12px 0; letter-spacing: 4px; font-weight: 600;
+  .pin-row { position: relative; }
+  .pin-input {
+    width: 100%; padding: 14px 16px;
+    border: 2px solid var(--gray-200); border-radius: var(--r-sm);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 28px; font-weight: 700;
+    letter-spacing: 1.8em; text-indent: .6em;
+    color: var(--gray-700); background: var(--white);
+    transition: border-color .2s, box-shadow .2s;
+    outline: none; text-align: center;
+    caret-color: var(--navy);
   }
+  .pin-input:focus {
+    border-color: var(--navy);
+    box-shadow: 0 0 0 4px rgba(0,48,135,.1);
+  }
+  .pin-input.error { border-color: var(--red); }
+  .pin-dots {
+    display: flex; justify-content: center; gap: 14px;
+    margin-top: 10px; pointer-events: none;
+  }
+  .pin-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--gray-200); transition: background .15s;
+  }
+  .pin-dot.filled { background: var(--navy); }
 
   .btn-primary {
     width: 100%; padding: 15px;
@@ -506,10 +527,17 @@
       <div class="form-group">
         <label>PIN (4 dígitos)</label>
         <div class="pin-row">
-          <input type="password" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]">
-          <input type="password" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]">
-          <input type="password" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]">
-          <input type="password" class="pin-digit" maxlength="1" inputmode="numeric" pattern="[0-9]">
+          <input type="password" id="login-pin" class="pin-input"
+                 maxlength="4" inputmode="numeric" pattern="[0-9]{4}"
+                 autocomplete="current-password"
+                 placeholder="••••"
+                 oninput="actualizarDots('login-dots', this.value)">
+          <div class="pin-dots" id="login-dots">
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+          </div>
         </div>
       </div>
       <button class="btn-primary" id="btn-login" onclick="doLogin()">Ingresar</button>
@@ -538,10 +566,17 @@
       <div class="form-group">
         <label>PIN de 4 dígitos *</label>
         <div class="pin-row">
-          <input type="password" class="pin-digit-reg" maxlength="1" inputmode="numeric" pattern="[0-9]">
-          <input type="password" class="pin-digit-reg" maxlength="1" inputmode="numeric" pattern="[0-9]">
-          <input type="password" class="pin-digit-reg" maxlength="1" inputmode="numeric" pattern="[0-9]">
-          <input type="password" class="pin-digit-reg" maxlength="1" inputmode="numeric" pattern="[0-9]">
+          <input type="password" id="reg-pin" class="pin-input"
+                 maxlength="4" inputmode="numeric" pattern="[0-9]{4}"
+                 autocomplete="new-password"
+                 placeholder="••••"
+                 oninput="actualizarDots('reg-dots', this.value)">
+          <div class="pin-dots" id="reg-dots">
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+          </div>
         </div>
       </div>
       <button class="btn-primary" id="btn-registro" onclick="doRegistro()">Crear mi cuenta</button>
@@ -895,8 +930,24 @@ const fmtFecha = (d) => {
 };
 
 function getPIN(selector) {
+  // Ahora el PIN es un input único — selector es el ID directo
+  if (selector === '.pin-digit')     return document.getElementById('login-pin')?.value || '';
+  if (selector === '.pin-digit-reg') return document.getElementById('reg-pin')?.value   || '';
+  // Fallback: selector CSS clásico por si acaso
   return Array.from(document.querySelectorAll(selector)).map(i => i.value).join('');
 }
+
+function actualizarDots(dotsId, valor) {
+  const dots = document.querySelectorAll(`#${dotsId} .pin-dot`);
+  dots.forEach((d, i) => d.classList.toggle('filled', i < valor.length));
+}
+
+// Filtrar entrada — solo dígitos numéricos en inputs PIN
+document.addEventListener('input', e => {
+  if (e.target.classList.contains('pin-input')) {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
+  }
+});
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
@@ -916,16 +967,12 @@ function showMsg(id, msg, visible = true) {
   el.textContent = msg; el.style.display = visible ? 'block' : 'none';
 }
 
-// PIN: auto-avanzar
-document.addEventListener('input', e => {
-  if (e.target.classList.contains('pin-digit') || e.target.classList.contains('pin-digit-reg')) {
-    if (e.target.value && e.target.nextElementSibling) e.target.nextElementSibling.focus();
-  }
-});
+// Enviar con Enter en PIN
 document.addEventListener('keydown', e => {
-  if ((e.target.classList.contains('pin-digit') || e.target.classList.contains('pin-digit-reg'))
-      && e.key === 'Backspace' && !e.target.value && e.target.previousElementSibling) {
-    e.target.previousElementSibling.focus();
+  if (e.key === 'Enter' && e.target.classList.contains('pin-input')) {
+    const activeTab = document.querySelector('.tab-content.active');
+    if (activeTab?.id === 'tab-login')    doLogin();
+    if (activeTab?.id === 'tab-registro') doRegistro();
   }
 });
 
@@ -1346,7 +1393,10 @@ function abrirChatbot() {
 // ═══════════════════════════════════════════
 function doLogout() {
   session = null;
-  document.querySelectorAll('.pin-digit, .pin-digit-reg').forEach(i => i.value = '');
+  const lp = document.getElementById('login-pin');
+  const rp = document.getElementById('reg-pin');
+  if (lp) { lp.value = ''; actualizarDots('login-dots', ''); }
+  if (rp) { rp.value = ''; actualizarDots('reg-dots',  ''); }
   document.getElementById('login-cedula').value = '';
   showScreen('screen-auth');
 }
@@ -1355,9 +1405,9 @@ function doLogout() {
 // ENTER para login
 // ═══════════════════════════════════════════
 document.addEventListener('keydown', e => {
-  if (e.key === 'Enter') {
+  if (e.key === 'Enter' && !e.target.classList.contains('pin-input')) {
     const activeTab = document.querySelector('.tab-content.active');
-    if (activeTab?.id === 'tab-login')   doLogin();
+    if (activeTab?.id === 'tab-login')    doLogin();
     if (activeTab?.id === 'tab-registro') doRegistro();
   }
 });
