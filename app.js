@@ -165,7 +165,9 @@ function obtenerSesion(numero) {
         celular:           numero,
         ultimaActividad:   ahora,
         alertaFraude:      null,
-        pendingFraudAlert: null
+        pendingFraudAlert: null,
+        historial:         [],   // ← Historial de mensajes para Gemini (multi-turn)
+        presentado:        false // ← true después del primer saludo del bot
     };
     sesiones.set(numero, nueva);
     return nueva;
@@ -307,6 +309,14 @@ Responde *1* o *2*`;
 // ─────────────────────────────────────────────
 async function ejecutarAgenteFinanciero({ mensajeUsuario, sesion, pdfBase64 = null }) {
 
+    // ── Indicadores de contexto conversacional para el system prompt ──
+    const yaIdentificado   = !!sesion.cedula;
+    const yaPresentado     = !!sesion.presentado;
+    const turnosActivos    = sesion.historial ? Math.floor(sesion.historial.length / 2) : 0;
+    const contextoConvStr  = turnosActivos > 0
+        ? `Llevas ${turnosActivos} turno(s) de conversación con este cliente en esta sesión.`
+        : 'Este es el primer mensaje del cliente en esta sesión.';
+
     const systemPrompt = `Eres "QuindBot", el asesor bancario personal y experto en riesgo crediticio del Banco QUIND.
 Eres analítico, empático y confiable como un gerente de banco experimentado.
 
@@ -327,18 +337,23 @@ TABLA 3: \`${PROJECT_ID}.banco_quind.transferencias\`
   • estado (STRING): COMPLETADA | INVESTIGACION | BLOQUEADA
   • motivo_bloqueo (STRING), fecha (TIMESTAMP)
 ─────────────────────────────────────────────
-CLIENTE EN SESIÓN: ${sesion.nombre || 'No identificado'} | Cédula: ${sesion.cedula || 'No registrada'}
+ESTADO DE LA SESIÓN:
+  • Cliente: ${sesion.nombre || 'No identificado'} | Cédula: ${sesion.cedula || 'No registrada'}
+  • Ya te presentaste en esta sesión: ${yaPresentado ? 'SÍ — NO vuelvas a presentarte ni a saludar formalmente' : 'NO — puedes saludar brevemente si es el primer mensaje'}
+  • ${contextoConvStr}
 
 ════════════════════════════════════
 REGLAS DE COMPORTAMIENTO
 ════════════════════════════════════
-• Si el cliente NO está identificado: saluda e indica que puede elegir una opción del menú o escribir su cédula para acceder a su información.
-• Si el cliente YA ESTÁ IDENTIFICADO: usa su nombre. NUNCA pidas la cédula de nuevo.
+• TONO CONVERSACIONAL: Responde de forma natural y concisa. NO repitas saludos formales ni te presentes de nuevo si ya lo hiciste. Continúa la conversación como un asesor que ya conoce al cliente.
+• Si el cliente NO está identificado: indica amablemente que puede escribir su cédula para acceder a su información.
+• Si el cliente YA ESTÁ IDENTIFICADO: usa su nombre de pila ocasionalmente. NUNCA pidas la cédula de nuevo.
 • Para CUALQUIER análisis financiero: usa consultar_bigquery. NO respondas con datos inventados.
 • Construye las queries de forma DINÁMICA según lo que pide el usuario.
 • Si detectas fraude o transacción inusual: usa registrar_alerta_fraude.
-• SALDO: NUNCA muestres saldo_actual espontáneamente al informar sobre el estado de cuenta o información general. Solo muéstralo si el cliente pregunta EXPLÍCITAMENTE por su saldo ("cuál es mi saldo", "cuánto tengo", "consultar saldo").
-• DESBLOQUEO DE CUENTA: Si el cliente pide desbloquear su cuenta, usa la función actualizar_estado_cuenta para cambiar estado_cuenta a 'ACTIVA'. Solo permite el desbloqueo si el estado actual es 'INVESTIGACION' (no si es 'BLOQUEADA' por fraude confirmado — en ese caso indica que debe llamar al 018000-QUIND). Confirma al cliente que su cuenta quedó activa.
+• SALDO: NUNCA muestres saldo_actual espontáneamente. Solo si el cliente pregunta EXPLÍCITAMENTE por su saldo.
+• DESBLOQUEO DE CUENTA: Si el cliente pide desbloquear su cuenta, usa actualizar_estado_cuenta para cambiar a 'ACTIVA'. Solo si estado es 'INVESTIGACION'. Si está 'BLOQUEADA' por fraude confirmado, indica que debe llamar al 018000-QUIND.
+• NO incluyas listas de opciones numeradas al final de tus respuestas salvo que el cliente lo pida. Responde directamente lo que se preguntó.
 
 ════════════════════════════════════
 TARJETAS DE CRÉDITO — CATÁLOGO Y LÓGICA DE OFERTA
@@ -395,8 +410,9 @@ CAPACIDADES
 ════════════════════════════════════
 FORMATO
 ════════════════════════════════════
-Responde en texto natural. Usa viñetas y tablas para claridad. Emojis con moderación.
-NO incluyas instrucciones sobre botones — el sistema los agrega automáticamente.`;
+Responde en texto natural y conversacional. Usa viñetas y tablas solo cuando aporten claridad real.
+Emojis con moderación. NO incluyas instrucciones sobre botones — el sistema los agrega automáticamente.
+NO repitas el menú de opciones al final de cada respuesta. Si ya respondiste la consulta, termina ahí o pregunta brevemente si hay algo más.`;
 
     const tools = [{
         functionDeclarations: [
@@ -470,7 +486,11 @@ NO incluyas instrucciones sobre botones — el sistema los agrega automáticamen
     const partsInicio = [{ text: mensajeUsuario }];
     if (pdfBase64) partsInicio.push({ inlineData: { mimeType: 'application/pdf', data: pdfBase64 } });
 
-    let mensajes = [{ role: 'user', parts: partsInicio }];
+    // ── HISTORIAL MULTI-TURN: incluir mensajes previos de la sesión ──
+    // Limitar a los últimos 20 turnos (10 pares user/model) para no exceder el contexto
+    const historialPrevio = (sesion.historial || []).slice(-20);
+    let mensajes = [...historialPrevio, { role: 'user', parts: partsInicio }];
+
     let respuestaFinal  = null;
     let productoResult  = null;
     const MAX_ITER = 6;
@@ -497,6 +517,14 @@ NO incluyas instrucciones sobre botones — el sistema los agrega automáticamen
         if (funcionCalls.length === 0) {
             respuestaFinal = textoParts || "He procesado tu solicitud. ¿Hay algo más en lo que pueda ayudarte?";
             console.log("✅ Respuesta final obtenida.");
+
+            // ── Guardar el turno en el historial de la sesión ──
+            if (!sesion.historial) sesion.historial = [];
+            sesion.historial.push({ role: 'user',  parts: partsInicio });
+            sesion.historial.push({ role: 'model', parts: [{ text: respuestaFinal }] });
+            // Marcar que el bot ya se presentó en esta sesión
+            sesion.presentado = true;
+
             break;
         }
 
@@ -925,12 +953,26 @@ Responde *1* o *2*`
             });
             const cliente = await obtenerClientePorCedula(cedulaDetectada);
             if (cliente) {
+                const nombreCompleto = `${cliente.nombres} ${cliente.apellidos}`;
                 guardarSesion(numeroUsuario, {
-                    cedula: cedulaDetectada,
-                    nombre: `${cliente.nombres} ${cliente.apellidos}`
+                    cedula:     cedulaDetectada,
+                    nombre:     nombreCompleto,
+                    presentado: true
                 });
-                // Mostrar menú ya identificado con el nombre
-                await enviarMenuPrincipal(numeroUsuario, true, `${cliente.nombres} ${cliente.apellidos}`);
+                // Si el usuario ya venía con una intención (ej: eligió opción del menú antes de identificarse),
+                // se la pasamos al agente en lugar de mostrar el menú de nuevo.
+                const sesionActualizada = obtenerSesion(numeroUsuario);
+                if (mensajeEfectivo !== cedulaDetectada) {
+                    // El mensaje tenía algo más además de la cédula — procesarlo con el agente
+                    const respuesta = await ejecutarAgenteFinanciero({
+                        mensajeUsuario: mensajeEfectivo,
+                        sesion: sesionActualizada
+                    });
+                    await sock.sendMessage(numeroUsuario, { text: respuesta });
+                } else {
+                    // Solo escribió su cédula — dar bienvenida personalizada + menú
+                    await enviarMenuPrincipal(numeroUsuario, true, nombreCompleto);
+                }
                 return;
             } else {
                 await sock.sendMessage(numeroUsuario, {
@@ -940,15 +982,32 @@ Responde *1* o *2*`
             }
         }
 
-        // Si el usuario saluda o escribe "hola/menú/inicio", mostrar menú
+        // Si el usuario saluda o escribe "hola/menú/inicio"
         const esActivadorMenu = /^(hola|hi|buenas|inicio|menu|menú|ayuda|help|start|opciones)$/i.test(mensajeEfectivo.trim());
         if (esActivadorMenu) {
+            // Si ya tiene una conversación activa, no interrumpir con el menú completo
+            if (sesion.cedula && sesion.historial.length > 2) {
+                const nombre1 = sesion.nombre?.split(' ')[0] || 'cliente';
+                await sock.sendMessage(numeroUsuario, {
+                    text: `¡Aquí estoy, ${nombre1}! 😊 ¿En qué te ayudo? Puedes preguntarme directamente o escribir *menú* para ver todas las opciones.`
+                });
+                // Mostrar menú completo solo si explícitamente escribe "menú" o "menu"
+                if (/^(menu|menú|opciones)$/i.test(mensajeEfectivo.trim())) {
+                    await enviarMenuPrincipal(numeroUsuario, !!sesion.cedula, sesion.nombre);
+                }
+                return;
+            }
             await enviarMenuPrincipal(numeroUsuario, !!sesion.cedula, sesion.nombre);
+            sesion.presentado = true;
             return;
         }
 
         // Si no hay cédula y no es botón de menú, ejecutar agente para responder libremente
         const sesionActual = obtenerSesion(numeroUsuario);
+        // Si nunca se ha presentado y el cliente no está identificado, marcar que el agente lo hará
+        if (!sesionActual.presentado && !sesionActual.cedula) {
+            sesionActual.presentado = true; // el agente se presentará en esta respuesta
+        }
 
         try {
             const respuesta = await ejecutarAgenteFinanciero({
