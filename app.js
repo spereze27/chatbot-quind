@@ -348,7 +348,8 @@ REGLAS DE COMPORTAMIENTO
 • TONO CONVERSACIONAL: Responde de forma natural y concisa. NO repitas saludos formales ni te presentes de nuevo si ya lo hiciste. Continúa la conversación como un asesor que ya conoce al cliente.
 • Si el cliente NO está identificado: indica amablemente que puede escribir su cédula para acceder a su información.
 • Si el cliente YA ESTÁ IDENTIFICADO: usa su nombre de pila ocasionalmente. NUNCA pidas la cédula de nuevo.
-• Para CUALQUIER análisis financiero: usa consultar_bigquery. NO respondas con datos inventados.
+• REGLA CRÍTICA DE FUNCIONES: Cuando necesites datos del cliente (perfil, saldo, movimientos, productos), llama a consultar_bigquery INMEDIATAMENTE como primera acción. NO generes texto de espera como "voy a verificar" o "un momento" ANTES de llamar la función — simplemente llama la función y cuando tengas los datos, responde. El cliente solo ve tu respuesta final, no los pasos intermedios.
+• Para CUALQUIER análisis financiero o consulta de productos: usa consultar_bigquery PRIMERO, luego responde con los datos reales.
 • Construye las queries de forma DINÁMICA según lo que pide el usuario.
 • Si detectas fraude o transacción inusual: usa registrar_alerta_fraude.
 • SALDO: NUNCA muestres saldo_actual espontáneamente. Solo si el cliente pregunta EXPLÍCITAMENTE por su saldo.
@@ -503,7 +504,11 @@ NO repitas el menú de opciones al final de cada respuesta. Si ya respondiste la
             response = await ai.models.generateContent({
                 model: 'gemini-2.5-flash',
                 contents: mensajes,
-                config: { systemInstruction: systemPrompt, tools }
+                config: {
+                    systemInstruction: systemPrompt,
+                    tools,
+                    thinkingConfig: { thinkingBudget: 0 }
+                }
             });
         } catch (err) {
             console.error("❌ Error Gemini:", err.message);
@@ -512,7 +517,7 @@ NO repitas el menú de opciones al final de cada respuesta. Si ya respondiste la
 
         const parts        = response.candidates?.[0]?.content?.parts || [];
         const funcionCalls = parts.filter(p => p.functionCall);
-        const textoParts   = parts.filter(p => p.text).map(p => p.text).join('');
+        const textoParts   = parts.filter(p => p.text && !p.thought).map(p => p.text).join('');
 
         if (funcionCalls.length === 0) {
             respuestaFinal = textoParts || "He procesado tu solicitud. ¿Hay algo más en lo que pueda ayudarte?";
@@ -893,13 +898,13 @@ Responde *1* o *2*`
                                 await ejecutarQueryBigQuery(`
                                     INSERT INTO \`${PROJECT_ID}.banco_quind.movimientos_cliente\`
                                     (cedula, fecha, detalle, movimiento)
-                                    VALUES ('${tx.cedula_origen}', CURRENT_TIMESTAMP(),
+                                    VALUES ('${tx.cedula_origen}', CURRENT_DATE(),
                                             'Transferencia confirmada a cuenta ${tx.cuenta_destino}', -${tx.monto})
                                 `);
                                 await ejecutarQueryBigQuery(`
                                     INSERT INTO \`${PROJECT_ID}.banco_quind.movimientos_cliente\`
                                     (cedula, fecha, detalle, movimiento)
-                                    VALUES ('${tx.cedula_destino}', CURRENT_TIMESTAMP(),
+                                    VALUES ('${tx.cedula_destino}', CURRENT_DATE(),
                                             'Transferencia recibida confirmada por titular', ${tx.monto})
                                 `);
                                 console.log(`✅ Transferencia ${idTx} completada y saldos actualizados`);
@@ -1037,8 +1042,8 @@ Responde *1* o *2*`
     });
 }
 
-// ─────────────────────────────────────────
+// ──────────────────────────────────────────
 // INICIO
-// ─────────────────────────────────────────
+// ──────────────────────────────────────────
 console.log("▶️ Iniciando QuindBot...");
 conectarWhatsApp().catch(err => console.error("💥 ERROR CRÍTICO:", err));
