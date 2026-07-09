@@ -73,10 +73,9 @@ async function obtenerIdToken(audiencia) {
 async function notificarBotFraude({ celular, cedula, nombre, monto, cuentaDestino, motivo, idTransferencia }) {
     console.log(`\n🚨 [BOT-NOTIFY] Iniciando | cedula=${cedula} | celular=${celular} | BOT_URL=${BOT_INTERNAL_URL || 'NO CONFIGURADO'}`);
     if (!BOT_INTERNAL_URL) {
-        console.error('❌ [BOT-NOTIFY] BOT_INTERNAL_URL vacío — configúralo en las variables de entorno de Cloud Run');
+        console.error('❌ [BOT-NOTIFY] BOT_INTERNAL_URL vacío — configúralo en Cloud Run > Variables de entorno');
         return;
     }
-    // Fire-and-forget: no bloquea la respuesta al cliente
     (async () => {
         try {
             const idToken = await obtenerIdToken(BOT_INTERNAL_URL);
@@ -91,7 +90,7 @@ async function notificarBotFraude({ celular, cedula, nombre, monto, cuentaDestin
             if (!res.ok) {
                 console.error(`❌ [BOT-NOTIFY] Bot respondió ${res.status}: ${txt}`);
             } else {
-                console.log(`📲 [BOT-NOTIFY] Alerta enviada OK | status=${res.status} | respuesta=${txt.slice(0,100)}`);
+                console.log(`📲 [BOT-NOTIFY] Alerta enviada OK | respuesta=${txt.slice(0,120)}`);
             }
         } catch (err) {
             console.error(`❌ [BOT-NOTIFY] Error: ${err.name} — ${err.message}`);
@@ -222,13 +221,13 @@ async function evaluarProducto({ cedula, tipoProducto }) {
 }
 
 // ── Detección de fraude ────────────────────────────────────────
-// Umbrales configurables — edita aquí para ajustar sensibilidad
+// Umbrales configurables — edita estos valores para ajustar sensibilidad
 const FRAUDE = {
-    pctSaldoMedio:    0.50,   // monto > 50% saldo_actual  → MEDIO
-    pctSaldoAlto:     0.80,   // monto > 80% saldo_actual  → MEDIO (+ fuerte)
-    umbralVsPromedio: 1.00,   // monto > 1× saldo_promedio → ALTO
-    umbralVsPromedio2:2.00,   // monto > 2× saldo_promedio → ALTO (refuerzo)
-    maxTxPorHora:     3,      // N tx completadas en 1h    → ALTO
+    pctSaldoAlto:     0.80,  // monto > 80% saldo_actual  → MEDIO
+    umbralVsPromedio: 1.00,  // monto > 1× saldo_promedio → ALTO
+    umbralVsPromedio2:2.00,  // monto > 2× saldo_promedio → ALTO (refuerzo)
+    pctSaldoMedioBloqueo: 0.90, // si NO hay promedio: monto > 90% saldo_actual → ALTO directo
+    maxTxPorHora:     3,     // N tx completadas en 1h    → ALTO
 };
 
 async function analizarRiesgoTransferencia({ cedula, monto, dispositivoHash }) {
@@ -245,8 +244,10 @@ async function analizarRiesgoTransferencia({ cedula, monto, dispositivoHash }) {
 
     const cliente     = rows[0];
     const saldoActual = Number(cliente.saldo_actual)           || 0;
-    const saldoProm   = Number(cliente.saldo_promedio_cuentas) || 0;
     const montoN      = Number(monto);
+    // saldo_promedio puede ser NULL si el cliente se registró desde el portal
+    // En ese caso usamos el saldo_actual como referencia de promedio
+    const saldoProm   = Number(cliente.saldo_promedio_cuentas) || saldoActual;
 
     console.log(`[FRAUDE] monto=$${montoN.toLocaleString('es-CO')} | saldo=$${saldoActual.toLocaleString('es-CO')} | promedio=$${saldoProm.toLocaleString('es-CO')} | estado=${cliente.estado_cuenta}`);
 
@@ -255,34 +256,37 @@ async function analizarRiesgoTransferencia({ cedula, monto, dispositivoHash }) {
     if (montoN > saldoActual)
         return { riesgo: 'ALTO', alertas: ['Saldo insuficiente'], bloquear: true };
 
-    // Regla 1 — supera el 80% del saldo disponible → MEDIO
+    // Regla 1 — monto > 80% del saldo disponible → MEDIO
     if (montoN > saldoActual * FRAUDE.pctSaldoAlto) {
         alertas.push(`Monto superior al ${FRAUDE.pctSaldoAlto * 100}% del saldo disponible`);
         nivelRiesgo = 'MEDIO';
+        console.log(`[FRAUDE] R1 activa: ${montoN} > ${saldoActual * FRAUDE.pctSaldoAlto}`);
     }
 
-    // Regla 2 — supera el saldo promedio histórico → ALTO (regla clave para tu caso)
-    if (saldoProm > 0 && montoN > saldoProm * FRAUDE.umbralVsPromedio) {
+    // Regla 2 — monto supera el saldo promedio → ALTO
+    // Si promedio era NULL usamos saldo_actual, así 80%+ del saldo siempre escala a ALTO
+    if (montoN > saldoProm * FRAUDE.umbralVsPromedio) {
         alertas.push('Monto superior al saldo promedio histórico de la cuenta');
         nivelRiesgo = 'ALTO';
-        console.log(`[FRAUDE] Regla 2: ${montoN} > promedio ${saldoProm} → ALTO`);
+        console.log(`[FRAUDE] R2 activa: ${montoN} > promedio ${saldoProm} → ALTO`);
     }
 
-    // Regla 3 — supera el doble del saldo promedio → refuerza ALTO
-    if (saldoProm > 0 && montoN > saldoProm * FRAUDE.umbralVsPromedio2) {
+    // Regla 3 — monto > 2× promedio → refuerza ALTO
+    if (montoN > saldoProm * FRAUDE.umbralVsPromedio2) {
         alertas.push('Monto inusualmente alto respecto al historial de saldo');
         nivelRiesgo = 'ALTO';
     }
 
-    // Regla 4 — dispositivo no reconocido → sube un nivel
+    // Regla 4 — dispositivo no reconocido → sube nivel
     if (cliente.disp_registrado && dispositivoHash && cliente.disp_registrado !== dispositivoHash) {
         alertas.push('Inicio de sesión desde dispositivo no reconocido');
         nivelRiesgo = nivelRiesgo === 'BAJO' ? 'MEDIO' : 'ALTO';
+        console.log(`[FRAUDE] R4 activa: dispositivo nuevo`);
     }
 
-    // Regla 5 — múltiples transferencias en 1 hora → ALTO
-    // BigQuery COUNT(*) devuelve BigInt — forzar Number para comparar correctamente
-    const recientes = await bqQuery(
+    // Regla 5 — múltiples tx en 1h → ALTO
+    // BigQuery COUNT(*) devuelve BigInt — forzar Number()
+    const recientes  = await bqQuery(
         `SELECT COUNT(*) AS total FROM ${TBL_TRANSFERENCIAS}
          WHERE cedula_origen = @cedula
            AND fecha > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)
@@ -391,10 +395,10 @@ app.post('/api/auth/registro', async (req, res) => {
         await bqQuery(
             `INSERT INTO ${TBL_CLIENTES}
                (cedula, nombres, apellidos, celular, pin_hash, numero_cuenta,
-                saldo_actual, estado_cuenta, dispositivo_hash, fecha_registro, ultimo_acceso_app)
+                saldo_actual, saldo_promedio_cuentas, estado_cuenta, dispositivo_hash, fecha_registro, ultimo_acceso_app)
              VALUES
                (@cedula, @nombres, @apellidos, @celular, @pin, @nc,
-                50000, 'ACTIVA', @disp, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())`,
+                50000, 50000, 'ACTIVA', @disp, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())`,
             [
                 { name: 'cedula',    value: cedula    },
                 { name: 'nombres',   value: nombres   },
