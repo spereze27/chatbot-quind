@@ -613,12 +613,12 @@ app.get('/api/buscar-cuenta/:numero', async (req, res) => {
     }
 });
 
-// ── Catch-all: sirve el frontend ───────────────────────────────
+// ── Catch-all: sirve el frontend ──────────────────────────────
 app.use((req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// ── Iniciar servidor ───────────────────────────────────────────
+// ── Iniciar servidor ──────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🏦 Banco QUIND API corriendo en puerto ${PORT}`);
     console.log(`🤖 BOT_INTERNAL_URL: ${BOT_INTERNAL_URL || '(no configurado)'}`);
