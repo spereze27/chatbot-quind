@@ -613,7 +613,7 @@ app.get('/api/buscar-cuenta/:numero', async (req, res) => {
     }
 });
 
-// ── Catch-all: sirve el frontend ──────────────────────────────
+// ── Catch-all: sirve el frontend ────────────────────────────
 app.use((req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
