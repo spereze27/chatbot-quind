@@ -309,9 +309,11 @@ Responde *1* o *2*`;
 // ─────────────────────────────────────────────
 async function ejecutarAgenteFinanciero({ mensajeUsuario, sesion, pdfBase64 = null }) {
 
-    // ══════════════════════════════════════════════════════════════════
-    // REGLAS DE NEGOCIO — edita estos valores para ajustar condiciones
-    // ══════════════════════════════════════════════════════════════════
+    // ── Indicadores de contexto conversacional para el system prompt ──
+    // ══════════════════════════════════════════════════════════════
+    // REGLAS DE NEGOCIO — modifica estos valores para ajustar tasas,
+    // plazos y multiplicadores sin tocar lógica del bot
+    // ══════════════════════════════════════════════════════════════
     const REGLAS = {
         tasas: {
             CREDITO_VIVIENDA: {
@@ -324,8 +326,8 @@ async function ejecutarAgenteFinanciero({ mensajeUsuario, sesion, pdfBase64 = nu
             },
         },
         plazos: {
-            CREDITO_VIVIENDA: [60, 120, 180],
-            CREDITO_CONSUMO:  [12, 24, 36],
+            CREDITO_VIVIENDA: [60, 120, 180],   // 5, 10, 15 años
+            CREDITO_CONSUMO:  [12, 24, 36],     // 1, 2, 3 años
         },
         multiplicador: {
             CREDITO_VIVIENDA: 60,
@@ -333,114 +335,140 @@ async function ejecutarAgenteFinanciero({ mensajeUsuario, sesion, pdfBase64 = nu
         },
     };
 
+    // Cuota mensual con amortización francesa: P × r(1+r)^n / [(1+r)^n - 1]
     function cuotaMensual(P, tasaEA, n) {
-        const r = Math.pow(1 + tasaEA, 1/12) - 1;
-        return r === 0 ? P / n : P * (r * Math.pow(1+r, n)) / (Math.pow(1+r, n) - 1);
+        const r = Math.pow(1 + tasaEA, 1 / 12) - 1;
+        return r === 0 ? P / n : P * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
     }
 
-    function tablaOpciones(monto, producto) {
-        const plazos  = REGLAS.plazos[producto] || [12, 24, 36];
-        const tasas   = REGLAS.tasas[producto]  || {};
-        const lineas  = ['Modalidad | Plazo | Tasa EA | Cuota estimada/mes', '--- | --- | --- | ---'];
-        for (const [, cfg] of Object.entries(tasas)) {
+    // Genera tabla markdown de simulaciones de cuota
+    function tablaSimulacion(monto, producto) {
+        const plazos = REGLAS.plazos[producto] || [12, 24, 36];
+        const tasas  = REGLAS.tasas[producto]  || {};
+        const filas  = ['Modalidad | Plazo | Tasa EA | Cuota/mes estimada', '--- | --- | --- | ---'];
+        for (const cfg of Object.values(tasas)) {
             const tasaMid = (cfg.min + cfg.max) / 2;
             for (const p of plazos) {
-                const cuota = Math.round(cuotaMensual(monto, tasaMid, p));
-                const plazoLabel = p % 12 === 0 ? `${p/12} año${p/12 > 1 ? 's' : ''}` : `${p} meses`;
-                lineas.push(`${cfg.label} | ${plazoLabel} | ${(cfg.min*100).toFixed(2)}%–${(cfg.max*100).toFixed(2)}% | $${cuota.toLocaleString('es-CO')}`);
+                const cuota      = Math.round(cuotaMensual(monto, tasaMid, p));
+                const plazoLabel = p % 12 === 0 ? `${p / 12} año${p / 12 > 1 ? 's' : ''}` : `${p} meses`;
+                filas.push(`${cfg.label} | ${plazoLabel} | ${(cfg.min * 100).toFixed(2)}%–${(cfg.max * 100).toFixed(2)}% | $${cuota.toLocaleString('es-CO')}`);
             }
         }
-        return lineas.join('\n');
+        return filas.join('\n');
     }
 
-    // ── Contexto conversacional ───────────────────────────────────────────
+    // ── Contexto de sesión ────────────────────────────────────────
     const yaPresentado    = !!sesion.presentado;
     const turnosActivos   = sesion.historial ? Math.floor(sesion.historial.length / 2) : 0;
-    const contextoConvStr = turnosActivos > 0
-        ? `Llevas ${turnosActivos} turno(s) de conversación con este cliente en esta sesión.`
+    const contextoStr     = turnosActivos > 0
+        ? `Llevas ${turnosActivos} turno(s) de conversación con este cliente.`
         : 'Este es el primer mensaje del cliente en esta sesión.';
 
-    const tasasViviendaStr = `VIS ${(REGLAS.tasas.CREDITO_VIVIENDA.VIS.min*100).toFixed(2)}%–${(REGLAS.tasas.CREDITO_VIVIENDA.VIS.max*100).toFixed(2)}% EA | No VIS ${(REGLAS.tasas.CREDITO_VIVIENDA.NO_VIS.min*100).toFixed(2)}%–${(REGLAS.tasas.CREDITO_VIVIENDA.NO_VIS.max*100).toFixed(2)}% EA`;
-    const tasasConsumoStr  = `Libre ${(REGLAS.tasas.CREDITO_CONSUMO.LIBRE.min*100).toFixed(2)}%–${(REGLAS.tasas.CREDITO_CONSUMO.LIBRE.max*100).toFixed(2)}% EA | Libranza ${(REGLAS.tasas.CREDITO_CONSUMO.NOMINA.min*100).toFixed(2)}%–${(REGLAS.tasas.CREDITO_CONSUMO.NOMINA.max*100).toFixed(2)}% EA`;
-    const plazosVivStr     = REGLAS.plazos.CREDITO_VIVIENDA.map(p => `${p/12} años`).join(' / ');
-    const plazosConStr     = REGLAS.plazos.CREDITO_CONSUMO.map(p => `${p} meses`).join(' / ');
+    // Construir strings de tasas/plazos para inyectar en el prompt
+    const tv = REGLAS.tasas.CREDITO_VIVIENDA;
+    const tc = REGLAS.tasas.CREDITO_CONSUMO;
+    const tasasVivStr  = `VIS ${(tv.VIS.min*100).toFixed(2)}%–${(tv.VIS.max*100).toFixed(2)}% EA | No VIS ${(tv.NO_VIS.min*100).toFixed(2)}%–${(tv.NO_VIS.max*100).toFixed(2)}% EA`;
+    const tasasConStr  = `Libre ${(tc.LIBRE.min*100).toFixed(2)}%–${(tc.LIBRE.max*100).toFixed(2)}% EA | Libranza ${(tc.NOMINA.min*100).toFixed(2)}%–${(tc.NOMINA.max*100).toFixed(2)}% EA`;
+    const plazosVivStr = REGLAS.plazos.CREDITO_VIVIENDA.map(p => `${p/12} años`).join(' / ');
+    const plazosConStr = REGLAS.plazos.CREDITO_CONSUMO.map(p => `${p} meses`).join(' / ');
 
-    const systemPrompt = `Eres "QuindBot", asesor bancario personal del Banco QUIND. Analítico, empático y directo.
+    // Ejemplo de tabla para vivienda (monto=1 se reemplaza con el real al responder)
+    const ejemploTablaViv = tablaSimulacion(100000000, 'CREDITO_VIVIENDA');
+    const ejemploTablaCon = tablaSimulacion(10000000,  'CREDITO_CONSUMO');
 
-ESQUEMA BigQuery (proyecto: ${PROJECT_ID}):
-TABLA clientes_riesgo_chatbot: cedula, nombres, apellidos, celular, saldo_actual, saldo_promedio_cuentas, deuda_actual_tarjetas, cupo_total_tarjetas, estado_cuenta, fecha_registro (TIMESTAMP), numero_cuenta
-TABLA movimientos_cliente: cedula, fecha (TIMESTAMP), detalle, movimiento (FLOAT — positivo=ingreso, negativo=egreso)
-TABLA transferencias: id_transferencia, cedula_origen, cedula_destino, cuenta_destino, monto, fecha, estado (COMPLETADA|INVESTIGACION|BLOQUEADA), motivo_bloqueo
+    const systemPrompt = `Eres "QuindBot", asesor bancario personal del Banco QUIND. Analítico, empático y directo como un gerente experimentado.
 
-SESIÓN: ${sesion.nombre || 'No identificado'} | Cédula: ${sesion.cedula || 'no registrada'} | Presentado: ${yaPresentado ? 'SÍ' : 'NO'} | ${contextoConvStr}
+ESQUEMA BigQuery — proyecto: ${PROJECT_ID}
+  clientes_riesgo_chatbot: cedula, nombres, apellidos, celular, saldo_actual (FLOAT), saldo_promedio_cuentas (FLOAT), deuda_actual_tarjetas (FLOAT), cupo_total_tarjetas (FLOAT), estado_cuenta, fecha_registro (TIMESTAMP), numero_cuenta
+  movimientos_cliente: cedula, fecha (TIMESTAMP), detalle, movimiento (FLOAT — positivo=ingreso, negativo=egreso)
+  transferencias: cedula_origen, cedula_destino, cuenta_destino, monto, fecha (TIMESTAMP), estado (COMPLETADA|INVESTIGACION|BLOQUEADA), motivo_bloqueo
 
-════════════════════════════════
-REGLAS CRÍTICAS
-════════════════════════════════
-1. ACCIÓN INMEDIATA: nunca digas "voy a verificar" o "un momento" — llama consultar_bigquery DIRECTAMENTE.
-2. NUNCA digas que no tienes información si el cliente está identificado. SIEMPRE consulta BigQuery primero.
-3. QUERY OBLIGATORIA para análisis de crédito/perfil — ejecuta AMBAS en secuencia:
-
-   QUERY A — Perfil completo:
-   SELECT nombres, apellidos, saldo_actual, saldo_promedio_cuentas,
-          deuda_actual_tarjetas, cupo_total_tarjetas,
-          estado_cuenta, fecha_registro
-   FROM \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\`
-   WHERE cedula = '${sesion.cedula || 'CEDULA_CLIENTE'}'
-   LIMIT 1
-
-   QUERY B — Ingresos promedio 3 meses:
-   SELECT COALESCE(AVG(total_mes), 0) AS ingreso_promedio_mensual
-   FROM (
-     SELECT FORMAT_TIMESTAMP('%Y-%m', fecha) AS mes, SUM(movimiento) AS total_mes
-     FROM \`${PROJECT_ID}.banco_quind.movimientos_cliente\`
-     WHERE cedula = '${sesion.cedula || 'CEDULA_CLIENTE'}' AND movimiento > 0
-       AND fecha >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 3 MONTH)
-     GROUP BY mes
-   )
-
-4. Si el cliente YA está identificado, NUNCA pidas la cédula de nuevo.
-5. SALDO: solo mostrarlo si el cliente lo pide explícitamente.
-6. DESBLOQUEO: usa actualizar_estado_cuenta. INVESTIGACION → ACTIVA sí. BLOQUEADA → llamar 018000-QUIND.
+SESIÓN ACTUAL: ${sesion.nombre || 'No identificado'} | Cédula: ${sesion.cedula || 'no registrada'} | Presentado: ${yaPresentado ? 'SÍ — no vuelvas a saludar' : 'NO — saluda brevemente'} | ${contextoStr}
 
 ════════════════════════════════
-CRÉDITO HIPOTECARIO / VIVIENDA
+REGLAS CRÍTICAS DE COMPORTAMIENTO
 ════════════════════════════════
-Monto máximo: CPM × ${REGLAS.multiplicador.CREDITO_VIVIENDA} (CPM = ingreso_promedio_mensual × 0.30)
-Requisitos: antigüedad cuenta ≥ 12 meses | deuda_actual < 30% ingresos | saldo_promedio > $3.000.000
-Tasas vigentes: ${tasasViviendaStr}
+1. ACCIÓN INMEDIATA: nunca generes texto de espera ("voy a verificar", "un momento") — llama consultar_bigquery DIRECTAMENTE como primera acción.
+2. Si el cliente está identificado, NUNCA digas que no tienes su información — SIEMPRE consulta BigQuery.
+3. NUNCA pidas la cédula de nuevo si el cliente ya está identificado.
+4. SALDO: solo muéstralo si el cliente lo pide explícitamente.
+5. DESBLOQUEO: solo si estado_cuenta = INVESTIGACION. Si es BLOQUEADA → llamar 018000-QUIND.
+
+════════════════════════════════
+QUERIES OBLIGATORIAS — ANÁLISIS DE CRÉDITO / PRODUCTOS
+════════════════════════════════
+Para CUALQUIER consulta sobre créditos, perfil o tarjetas, ejecuta SIEMPRE ambas queries:
+
+QUERY A — Perfil completo del cliente:
+SELECT nombres, apellidos, saldo_actual, saldo_promedio_cuentas,
+       deuda_actual_tarjetas, cupo_total_tarjetas,
+       estado_cuenta, fecha_registro
+FROM \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\`
+WHERE cedula = '${sesion.cedula || 'CEDULA_CLIENTE'}'
+LIMIT 1
+
+QUERY B — Ingreso promedio mensual (últimos 90 días):
+SELECT COALESCE(AVG(total_mes), 0) AS ingreso_promedio_mensual
+FROM (
+  SELECT FORMAT_TIMESTAMP('%Y-%m', fecha) AS mes, SUM(movimiento) AS total_mes
+  FROM \`${PROJECT_ID}.banco_quind.movimientos_cliente\`
+  WHERE cedula = '${sesion.cedula || 'CEDULA_CLIENTE'}'
+    AND movimiento > 0
+    AND fecha >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 90 DAY)
+  GROUP BY mes
+)
+
+Con esos datos calcula:
+  • Antigüedad en meses = meses entre fecha_registro y hoy
+  • CPM (capacidad de pago mensual) = ingreso_promedio_mensual × 0.30
+  • % endeudamiento = deuda_actual_tarjetas / ingreso_promedio_mensual × 100
+
+════════════════════════════════
+CRÉDITO DE VIVIENDA / HIPOTECARIO
+════════════════════════════════
+Requisitos: antigüedad ≥ 12 meses | deuda < 30% ingresos | saldo_promedio > $3.000.000
+Monto máximo: CPM × ${REGLAS.multiplicador.CREDITO_VIVIENDA}
+Tasas vigentes: ${tasasVivStr}
 Plazos: ${plazosVivStr}
 
-Cuando el cliente califique, presenta SIEMPRE esta tabla de simulación (calculada con la fórmula francesa P×r(1+r)^n/[(1+r)^n-1]):
-${tablaOpciones(1, 'CREDITO_VIVIENDA').split('\n').map(l => '  ' + l).join('\n')}
-(reemplaza los valores con el monto_maximo real del cliente)
+Al presentar resultados, muestra SIEMPRE la tabla de simulación calculada con el monto_maximo REAL del cliente (fórmula francesa P×r(1+r)^n/[(1+r)^n-1]). Ejemplo de formato con $100.000.000:
+${ejemploTablaViv}
 
-Cuando no califique, explica exactamente qué requisito falta y cuánto le falta.
+Si no califica: explica exactamente qué requisito falta y cuánto le falta para cumplirlo.
 
 ════════════════════════════════
 CRÉDITO DE CONSUMO / LIBRE INVERSIÓN
 ════════════════════════════════
+Requisitos: antigüedad ≥ 6 meses | deuda < 40% ingresos
 Monto máximo: CPM × ${REGLAS.multiplicador.CREDITO_CONSUMO}
-Requisitos: antigüedad ≥ 6 meses | deuda_actual < 40% ingresos
-Tasas vigentes: ${tasasConsumoStr}
+Tasas vigentes: ${tasasConStr}
 Plazos: ${plazosConStr}
 
-Presenta tabla de simulación con el monto real calculado.
+Ejemplo de tabla con $10.000.000:
+${ejemploTablaCon}
 
 ════════════════════════════════
 TARJETAS DE CRÉDITO
 ════════════════════════════════
-GOLD    → saldo_promedio > $500K, antigüedad ≥ 3 meses → cupo máx $3M | sin cuota de manejo
-PLATINO → saldo_promedio > $2M, deuda < 50% cupo → cupo máx $8M | 2 puntos/$1.000 + seguro viaje
-BLACK   → saldo_promedio > $5M, deuda < 30% cupo → cupo máx $15M | 2% cashback + concierge
+Consulta perfil (Query A) y determina nivel según saldo_promedio_cuentas y % deuda sobre cupo:
 
-Flujo: consulta perfil → determina nivel → recomienda → registra con solicitar_producto.
+GOLD    → saldo_promedio > $500K + antigüedad ≥ 3 meses              → cupo máx $3M   | sin cuota de manejo
+PLATINO → saldo_promedio > $2M   + deuda < 50% cupo                  → cupo máx $8M   | 2 puntos/$1.000 + seguro viaje
+BLACK   → saldo_promedio > $5M   + deuda < 30% cupo + antigüedad ≥ 1 mes → cupo máx $15M | 2% cashback + concierge
+
+Cupo asignado = min(cupo_max_tarjeta, CPM × multiplicador_tarjeta):
+  GOLD × 1.5 | PLATINO × 3 | BLACK × 5
+
+Flujo: Query A → determina nivel → informa beneficios → registra con solicitar_producto.
+Si pide una tarjeta superior a su perfil: explica qué necesita mejorar con números concretos.
 
 ════════════════════════════════
-FORMATO
+FORMATO DE RESPUESTA
 ════════════════════════════════
-Responde conversacionalmente. Usa tablas para simulaciones de crédito. Emojis con moderación.
-No repitas el menú al final. No generes texto de espera antes de llamar funciones.`;
+• Responde de forma conversacional y directa.
+• Para créditos: SIEMPRE presenta la tabla de simulación con los montos reales calculados.
+• Para tarjetas: menciona cupo aprobado, tasa y beneficio estrella.
+• Emojis con moderación. No repitas el menú al final.`;
 
     const tools = [{
         functionDeclarations: [
@@ -925,13 +953,13 @@ Responde *1* o *2*`
                                 await ejecutarQueryBigQuery(`
                                     INSERT INTO \`${PROJECT_ID}.banco_quind.movimientos_cliente\`
                                     (cedula, fecha, detalle, movimiento)
-                                    VALUES ('${tx.cedula_origen}', CURRENT_DATE(),
+                                    VALUES ('${tx.cedula_origen}', CURRENT_TIMESTAMP(),
                                             'Transferencia confirmada a cuenta ${tx.cuenta_destino}', -${tx.monto})
                                 `);
                                 await ejecutarQueryBigQuery(`
                                     INSERT INTO \`${PROJECT_ID}.banco_quind.movimientos_cliente\`
                                     (cedula, fecha, detalle, movimiento)
-                                    VALUES ('${tx.cedula_destino}', CURRENT_DATE(),
+                                    VALUES ('${tx.cedula_destino}', CURRENT_TIMESTAMP(),
                                             'Transferencia recibida confirmada por titular', ${tx.monto})
                                 `);
                                 console.log(`✅ Transferencia ${idTx} completada y saldos actualizados`);

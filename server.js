@@ -120,7 +120,7 @@ async function evaluarProducto({ cedula, tipoProducto }) {
            FROM ${TBL_MOVIMIENTOS}
            WHERE cedula = @cedula
              AND movimiento > 0
-             AND fecha >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 MONTH)
+             AND fecha >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 90 DAY)
            GROUP BY mes
          )`,
         [{ name: 'cedula', value: cedula }]
@@ -231,23 +231,39 @@ async function analizarRiesgoTransferencia({ cedula, monto, dispositivoHash }) {
     );
     if (!rows.length) return { riesgo: 'ALTO', alertas: ['Cliente no encontrado'], bloquear: true };
 
-    const cliente = rows[0];
-    if (cliente.estado_cuenta !== 'ACTIVA') return { riesgo: 'ALTO', alertas: ['Cuenta no activa'], bloquear: true };
-    if (monto > cliente.saldo_actual)        return { riesgo: 'ALTO', alertas: ['Saldo insuficiente'], bloquear: true };
+    const cliente     = rows[0];
+    const saldoProm   = cliente.saldo_promedio_cuentas || 0;
+    const saldoActual = cliente.saldo_actual           || 0;
 
-    if (monto > cliente.saldo_actual * 0.8) {
+    if (cliente.estado_cuenta !== 'ACTIVA') return { riesgo: 'ALTO', alertas: ['Cuenta no activa'], bloquear: true };
+    if (monto > saldoActual)                return { riesgo: 'ALTO', alertas: ['Saldo insuficiente'], bloquear: true };
+
+    // Regla 1 — monto > 80% del saldo disponible → MEDIO
+    if (monto > saldoActual * 0.80) {
         alertas.push('Transferencia superior al 80% del saldo disponible');
         nivelRiesgo = 'MEDIO';
     }
-    if (cliente.saldo_promedio_cuentas && monto > cliente.saldo_promedio_cuentas * 2) {
+
+    // Regla 2 — monto supera el saldo promedio histórico → ALTO
+    // (captura movimientos inusualmente altos aunque el saldo actual lo permita)
+    if (saldoProm > 0 && monto > saldoProm) {
+        alertas.push('Monto superior al saldo promedio histórico de la cuenta');
+        nivelRiesgo = 'ALTO';
+    }
+
+    // Regla 3 — monto > 2× saldo promedio → refuerza ALTO
+    if (saldoProm > 0 && monto > saldoProm * 2) {
         alertas.push('Monto inusualmente alto respecto al historial de saldo');
         nivelRiesgo = 'ALTO';
     }
+
+    // Regla 4 — dispositivo no reconocido → sube el riesgo un nivel
     if (cliente.disp_registrado && dispositivoHash && cliente.disp_registrado !== dispositivoHash) {
         alertas.push('Inicio de sesión desde dispositivo no reconocido');
         nivelRiesgo = nivelRiesgo === 'BAJO' ? 'MEDIO' : 'ALTO';
     }
 
+    // Regla 5 — más de 3 transferencias completadas en la última hora → ALTO
     const recientes = await bqQuery(
         `SELECT COUNT(*) AS total FROM ${TBL_TRANSFERENCIAS}
          WHERE cedula_origen = @cedula
@@ -260,7 +276,12 @@ async function analizarRiesgoTransferencia({ cedula, monto, dispositivoHash }) {
         nivelRiesgo = 'ALTO';
     }
 
-    return { riesgo: nivelRiesgo, alertas, bloquear: nivelRiesgo === 'ALTO' && alertas.length > 0 };
+    // Bloquear si riesgo ALTO con al menos una alerta,
+    // O si hay 2+ alertas aunque el riesgo sea MEDIO
+    const bloquear = nivelRiesgo === 'ALTO' ||
+                     (nivelRiesgo === 'MEDIO' && alertas.length >= 2);
+
+    return { riesgo: nivelRiesgo, alertas, bloquear };
 }
 
 // ══════════════════════════════════════════════
