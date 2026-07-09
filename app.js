@@ -309,111 +309,138 @@ Responde *1* o *2*`;
 // ─────────────────────────────────────────────
 async function ejecutarAgenteFinanciero({ mensajeUsuario, sesion, pdfBase64 = null }) {
 
-    // ── Indicadores de contexto conversacional para el system prompt ──
-    const yaIdentificado   = !!sesion.cedula;
-    const yaPresentado     = !!sesion.presentado;
-    const turnosActivos    = sesion.historial ? Math.floor(sesion.historial.length / 2) : 0;
-    const contextoConvStr  = turnosActivos > 0
+    // ══════════════════════════════════════════════════════════════════
+    // REGLAS DE NEGOCIO — edita estos valores para ajustar condiciones
+    // ══════════════════════════════════════════════════════════════════
+    const REGLAS = {
+        tasas: {
+            CREDITO_VIVIENDA: {
+                VIS:    { min: 0.1099, max: 0.1299, label: 'VIS (vivienda interés social)' },
+                NO_VIS: { min: 0.1299, max: 0.1499, label: 'No VIS' },
+            },
+            CREDITO_CONSUMO: {
+                LIBRE:  { min: 0.1799, max: 0.2199, label: 'Libre inversión' },
+                NOMINA: { min: 0.1399, max: 0.1699, label: 'Libranza / Nómina' },
+            },
+        },
+        plazos: {
+            CREDITO_VIVIENDA: [60, 120, 180],
+            CREDITO_CONSUMO:  [12, 24, 36],
+        },
+        multiplicador: {
+            CREDITO_VIVIENDA: 60,
+            CREDITO_CONSUMO:  12,
+        },
+    };
+
+    function cuotaMensual(P, tasaEA, n) {
+        const r = Math.pow(1 + tasaEA, 1/12) - 1;
+        return r === 0 ? P / n : P * (r * Math.pow(1+r, n)) / (Math.pow(1+r, n) - 1);
+    }
+
+    function tablaOpciones(monto, producto) {
+        const plazos  = REGLAS.plazos[producto] || [12, 24, 36];
+        const tasas   = REGLAS.tasas[producto]  || {};
+        const lineas  = ['Modalidad | Plazo | Tasa EA | Cuota estimada/mes', '--- | --- | --- | ---'];
+        for (const [, cfg] of Object.entries(tasas)) {
+            const tasaMid = (cfg.min + cfg.max) / 2;
+            for (const p of plazos) {
+                const cuota = Math.round(cuotaMensual(monto, tasaMid, p));
+                const plazoLabel = p % 12 === 0 ? `${p/12} año${p/12 > 1 ? 's' : ''}` : `${p} meses`;
+                lineas.push(`${cfg.label} | ${plazoLabel} | ${(cfg.min*100).toFixed(2)}%–${(cfg.max*100).toFixed(2)}% | $${cuota.toLocaleString('es-CO')}`);
+            }
+        }
+        return lineas.join('\n');
+    }
+
+    // ── Contexto conversacional ───────────────────────────────────────────
+    const yaPresentado    = !!sesion.presentado;
+    const turnosActivos   = sesion.historial ? Math.floor(sesion.historial.length / 2) : 0;
+    const contextoConvStr = turnosActivos > 0
         ? `Llevas ${turnosActivos} turno(s) de conversación con este cliente en esta sesión.`
         : 'Este es el primer mensaje del cliente en esta sesión.';
 
-    const systemPrompt = `Eres "QuindBot", el asesor bancario personal y experto en riesgo crediticio del Banco QUIND.
-Eres analítico, empático y confiable como un gerente de banco experimentado.
+    const tasasViviendaStr = `VIS ${(REGLAS.tasas.CREDITO_VIVIENDA.VIS.min*100).toFixed(2)}%–${(REGLAS.tasas.CREDITO_VIVIENDA.VIS.max*100).toFixed(2)}% EA | No VIS ${(REGLAS.tasas.CREDITO_VIVIENDA.NO_VIS.min*100).toFixed(2)}%–${(REGLAS.tasas.CREDITO_VIVIENDA.NO_VIS.max*100).toFixed(2)}% EA`;
+    const tasasConsumoStr  = `Libre ${(REGLAS.tasas.CREDITO_CONSUMO.LIBRE.min*100).toFixed(2)}%–${(REGLAS.tasas.CREDITO_CONSUMO.LIBRE.max*100).toFixed(2)}% EA | Libranza ${(REGLAS.tasas.CREDITO_CONSUMO.NOMINA.min*100).toFixed(2)}%–${(REGLAS.tasas.CREDITO_CONSUMO.NOMINA.max*100).toFixed(2)}% EA`;
+    const plazosVivStr     = REGLAS.plazos.CREDITO_VIVIENDA.map(p => `${p/12} años`).join(' / ');
+    const plazosConStr     = REGLAS.plazos.CREDITO_CONSUMO.map(p => `${p} meses`).join(' / ');
 
-ESQUEMA DE BASE DE DATOS (BigQuery, proyecto: ${PROJECT_ID}):
-─────────────────────────────────────────────
-TABLA 1: \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\`
-  • nombres (STRING), apellidos (STRING), cedula (STRING), celular (STRING)
-  • deuda_actual_tarjetas (FLOAT), cupo_total_tarjetas (FLOAT), saldo_promedio_cuentas (FLOAT)
-  • saldo_actual (FLOAT) — saldo disponible en la cuenta del portal web
-  • numero_cuenta (STRING), estado_cuenta (STRING), fecha_registro (TIMESTAMP)
+    const systemPrompt = `Eres "QuindBot", asesor bancario personal del Banco QUIND. Analítico, empático y directo.
 
-TABLA 2: \`${PROJECT_ID}.banco_quind.movimientos_cliente\`
-  • cedula (STRING), fecha (DATE/TIMESTAMP), detalle (STRING), movimiento (FLOAT)
-  • movimiento > 0 = INGRESO | movimiento < 0 = EGRESO
+ESQUEMA BigQuery (proyecto: ${PROJECT_ID}):
+TABLA clientes_riesgo_chatbot: cedula, nombres, apellidos, celular, saldo_actual, saldo_promedio_cuentas, deuda_actual_tarjetas, cupo_total_tarjetas, estado_cuenta, fecha_registro (TIMESTAMP), numero_cuenta
+TABLA movimientos_cliente: cedula, fecha (TIMESTAMP), detalle, movimiento (FLOAT — positivo=ingreso, negativo=egreso)
+TABLA transferencias: id_transferencia, cedula_origen, cedula_destino, cuenta_destino, monto, fecha, estado (COMPLETADA|INVESTIGACION|BLOQUEADA), motivo_bloqueo
 
-TABLA 3: \`${PROJECT_ID}.banco_quind.transferencias\`
-  • cedula_origen (STRING), cuenta_destino (STRING), monto (FLOAT)
-  • estado (STRING): COMPLETADA | INVESTIGACION | BLOQUEADA
-  • motivo_bloqueo (STRING), fecha (TIMESTAMP)
-─────────────────────────────────────────────
-ESTADO DE LA SESIÓN:
-  • Cliente: ${sesion.nombre || 'No identificado'} | Cédula: ${sesion.cedula || 'No registrada'}
-  • Ya te presentaste en esta sesión: ${yaPresentado ? 'SÍ — NO vuelvas a presentarte ni a saludar formalmente' : 'NO — puedes saludar brevemente si es el primer mensaje'}
-  • ${contextoConvStr}
+SESIÓN: ${sesion.nombre || 'No identificado'} | Cédula: ${sesion.cedula || 'no registrada'} | Presentado: ${yaPresentado ? 'SÍ' : 'NO'} | ${contextoConvStr}
 
-════════════════════════════════════
-REGLAS DE COMPORTAMIENTO
-════════════════════════════════════
-• TONO CONVERSACIONAL: Responde de forma natural y concisa. NO repitas saludos formales ni te presentes de nuevo si ya lo hiciste. Continúa la conversación como un asesor que ya conoce al cliente.
-• Si el cliente NO está identificado: indica amablemente que puede escribir su cédula para acceder a su información.
-• Si el cliente YA ESTÁ IDENTIFICADO: usa su nombre de pila ocasionalmente. NUNCA pidas la cédula de nuevo.
-• REGLA CRÍTICA DE FUNCIONES: Cuando necesites datos del cliente (perfil, saldo, movimientos, productos), llama a consultar_bigquery INMEDIATAMENTE como primera acción. NO generes texto de espera como "voy a verificar" o "un momento" ANTES de llamar la función — simplemente llama la función y cuando tengas los datos, responde. El cliente solo ve tu respuesta final, no los pasos intermedios.
-• Para CUALQUIER análisis financiero o consulta de productos: usa consultar_bigquery PRIMERO, luego responde con los datos reales.
-• Construye las queries de forma DINÁMICA según lo que pide el usuario.
-• Si detectas fraude o transacción inusual: usa registrar_alerta_fraude.
-• SALDO: NUNCA muestres saldo_actual espontáneamente. Solo si el cliente pregunta EXPLÍCITAMENTE por su saldo.
-• DESBLOQUEO DE CUENTA: Si el cliente pide desbloquear su cuenta, usa actualizar_estado_cuenta para cambiar a 'ACTIVA'. Solo si estado es 'INVESTIGACION'. Si está 'BLOQUEADA' por fraude confirmado, indica que debe llamar al 018000-QUIND.
-• NO incluyas listas de opciones numeradas al final de tus respuestas salvo que el cliente lo pida. Responde directamente lo que se preguntó.
+════════════════════════════════
+REGLAS CRÍTICAS
+════════════════════════════════
+1. ACCIÓN INMEDIATA: nunca digas "voy a verificar" o "un momento" — llama consultar_bigquery DIRECTAMENTE.
+2. NUNCA digas que no tienes información si el cliente está identificado. SIEMPRE consulta BigQuery primero.
+3. QUERY OBLIGATORIA para análisis de crédito/perfil — ejecuta AMBAS en secuencia:
 
-════════════════════════════════════
-TARJETAS DE CRÉDITO — CATÁLOGO Y LÓGICA DE OFERTA
-════════════════════════════════════
-El Banco QUIND ofrece tres tarjetas. Cuando el cliente pregunte por tarjetas, compáralas y recomienda la más adecuada según su perfil:
+   QUERY A — Perfil completo:
+   SELECT nombres, apellidos, saldo_actual, saldo_promedio_cuentas,
+          deuda_actual_tarjetas, cupo_total_tarjetas,
+          estado_cuenta, fecha_registro
+   FROM \`${PROJECT_ID}.banco_quind.clientes_riesgo_chatbot\`
+   WHERE cedula = '${sesion.cedula || 'CEDULA_CLIENTE'}'
+   LIMIT 1
 
-TARJETA GOLD (perfil BÁSICO — saldo_promedio > $500K, antigüedad ≥ 3 meses):
-  • Beneficio estrella: SIN cuota de manejo
-  • Cuotas sin interés en comercios aliados
-  • App de control de gastos
-  • Cupo máximo: $3.000.000
+   QUERY B — Ingresos promedio 3 meses:
+   SELECT COALESCE(AVG(total_mes), 0) AS ingreso_promedio_mensual
+   FROM (
+     SELECT FORMAT_TIMESTAMP('%Y-%m', fecha) AS mes, SUM(movimiento) AS total_mes
+     FROM \`${PROJECT_ID}.banco_quind.movimientos_cliente\`
+     WHERE cedula = '${sesion.cedula || 'CEDULA_CLIENTE'}' AND movimiento > 0
+       AND fecha >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 3 MONTH)
+     GROUP BY mes
+   )
 
-TARJETA PLATINO (perfil MEDIO — saldo_promedio > $2M):
-  • Beneficio estrella: Acumula 2 PUNTOS COLOMBIA por cada $1.000 gastado
-  • Seguro de viaje internacional incluido
-  • Acceso a salas VIP en aeropuertos
-  • Cupo máximo: $8.000.000
+4. Si el cliente YA está identificado, NUNCA pidas la cédula de nuevo.
+5. SALDO: solo mostrarlo si el cliente lo pide explícitamente.
+6. DESBLOQUEO: usa actualizar_estado_cuenta. INVESTIGACION → ACTIVA sí. BLOQUEADA → llamar 018000-QUIND.
 
-TARJETA BLACK (perfil ALTO — saldo_promedio > $5M, deuda < 30% cupo):
-  • Beneficio estrella: 2% CASHBACK en TODAS las compras, abonado directo a la cuenta
-  • Concierge personal 24/7
-  • Cupo máximo: $15.000.000
+════════════════════════════════
+CRÉDITO HIPOTECARIO / VIVIENDA
+════════════════════════════════
+Monto máximo: CPM × ${REGLAS.multiplicador.CREDITO_VIVIENDA} (CPM = ingreso_promedio_mensual × 0.30)
+Requisitos: antigüedad cuenta ≥ 12 meses | deuda_actual < 30% ingresos | saldo_promedio > $3.000.000
+Tasas vigentes: ${tasasViviendaStr}
+Plazos: ${plazosVivStr}
 
-REGLA DE RECOMENDACIÓN:
-  1. Consulta el perfil del cliente con consultar_bigquery
-  2. Determina su nivel (BÁSICO/MEDIO/ALTO) según saldo_promedio y deuda
-  3. Recomienda la tarjeta más alta que califica, y explica los beneficios de cada una
-  4. Si el cliente elige una tarjeta superior a su perfil, explica qué necesita mejorar
-  5. Usa solicitar_producto con el tipo: TARJETA_GOLD | TARJETA_PLATINO | TARJETA_BLACK
-  
-CRÉDITO DE CONSUMO:
-  • Monto máximo = CPM × 12 (plazo hasta 36 meses)
-  • Requiere: cuenta activa > 6 meses Y deuda actual < 40% ingresos
-  
-CRÉDITO DE VIVIENDA:
-  • Monto máximo = CPM × 60 (plazo hasta 15 años)
-  • Requiere: cuenta activa > 12 meses Y deuda actual < 30% ingresos Y saldo_promedio > $3M
+Cuando el cliente califique, presenta SIEMPRE esta tabla de simulación (calculada con la fórmula francesa P×r(1+r)^n/[(1+r)^n-1]):
+${tablaOpciones(1, 'CREDITO_VIVIENDA').split('\n').map(l => '  ' + l).join('\n')}
+(reemplaza los valores con el monto_maximo real del cliente)
 
-Al evaluar: consulta BigQuery para obtener ingresos reales de los últimos 3 meses.
-Comunica el resultado de forma clara: producto aprobado, cupo/monto asignado, condiciones.
-Si se deniega, explica por qué y qué necesita mejorar.
+Cuando no califique, explica exactamente qué requisito falta y cuánto le falta.
 
-════════════════════════════════════
-CAPACIDADES
-════════════════════════════════════
-1. ANÁLISIS DE MOVIMIENTOS: por mes, por categoría, por rango de fechas, comparativos, tendencias
-2. PERFIL CREDITICIO: endeudamiento, CPM, scoring
-3. ANÁLISIS SALARIAL: cuartiles Q1-Q4 en mercado colombiano
-4. SIMULACIONES: amortización francesa [P×r(1+r)^n]/[(1+r)^n-1], proyección ahorro
-5. DETECCIÓN FRAUDE: transacciones no reconocidas
-6. SALDO Y ESTADO: saldo_actual y estado_cuenta
-7. SOLICITUD PRODUCTOS: tarjeta crédito, crédito consumo, crédito vivienda
+════════════════════════════════
+CRÉDITO DE CONSUMO / LIBRE INVERSIÓN
+════════════════════════════════
+Monto máximo: CPM × ${REGLAS.multiplicador.CREDITO_CONSUMO}
+Requisitos: antigüedad ≥ 6 meses | deuda_actual < 40% ingresos
+Tasas vigentes: ${tasasConsumoStr}
+Plazos: ${plazosConStr}
 
-════════════════════════════════════
+Presenta tabla de simulación con el monto real calculado.
+
+════════════════════════════════
+TARJETAS DE CRÉDITO
+════════════════════════════════
+GOLD    → saldo_promedio > $500K, antigüedad ≥ 3 meses → cupo máx $3M | sin cuota de manejo
+PLATINO → saldo_promedio > $2M, deuda < 50% cupo → cupo máx $8M | 2 puntos/$1.000 + seguro viaje
+BLACK   → saldo_promedio > $5M, deuda < 30% cupo → cupo máx $15M | 2% cashback + concierge
+
+Flujo: consulta perfil → determina nivel → recomienda → registra con solicitar_producto.
+
+════════════════════════════════
 FORMATO
-════════════════════════════════════
-Responde en texto natural y conversacional. Usa viñetas y tablas solo cuando aporten claridad real.
-Emojis con moderación. NO incluyas instrucciones sobre botones — el sistema los agrega automáticamente.
-NO repitas el menú de opciones al final de cada respuesta. Si ya respondiste la consulta, termina ahí o pregunta brevemente si hay algo más.`;
+════════════════════════════════
+Responde conversacionalmente. Usa tablas para simulaciones de crédito. Emojis con moderación.
+No repitas el menú al final. No generes texto de espera antes de llamar funciones.`;
 
     const tools = [{
         functionDeclarations: [
@@ -1042,8 +1069,8 @@ Responde *1* o *2*`
     });
 }
 
-// ────────────────────────────────────────
+// ──────────────────────────────────────────
 // INICIO
-// ────────────────────────────────────────
+// ──────────────────────────────────────────
 console.log("▶️ Iniciando QuindBot...");
 conectarWhatsApp().catch(err => console.error("💥 ERROR CRÍTICO:", err));
