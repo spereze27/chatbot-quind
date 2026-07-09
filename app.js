@@ -893,13 +893,13 @@ Responde *1* o *2*`
                                 await ejecutarQueryBigQuery(`
                                     INSERT INTO \`${PROJECT_ID}.banco_quind.movimientos_cliente\`
                                     (cedula, fecha, detalle, movimiento)
-                                    VALUES ('${tx.cedula_origen}', CURRENT_DATE(),
+                                    VALUES ('${tx.cedula_origen}', CURRENT_TIMESTAMP(),
                                             'Transferencia confirmada a cuenta ${tx.cuenta_destino}', -${tx.monto})
                                 `);
                                 await ejecutarQueryBigQuery(`
                                     INSERT INTO \`${PROJECT_ID}.banco_quind.movimientos_cliente\`
                                     (cedula, fecha, detalle, movimiento)
-                                    VALUES ('${tx.cedula_destino}', CURRENT_DATE(),
+                                    VALUES ('${tx.cedula_destino}', CURRENT_TIMESTAMP(),
                                             'Transferencia recibida confirmada por titular', ${tx.monto})
                                 `);
                                 console.log(`✅ Transferencia ${idTx} completada y saldos actualizados`);
@@ -941,9 +941,9 @@ Responde *1* o *2*`
         };
         const mensajeEfectivo = menuMap[textoUsuario.trim()] || textoUsuario;
 
-        // ═══════════════════════════════════════════════════════
+        // ════════════════════════════════════════════════════════
         // FLUJO NORMAL — identificación y agente
-        // ═══════════════════════════════════════════════════════
+        // ════════════════════════════════════════════════════════
 
         const matchCedula = mensajeEfectivo?.match(/\b\d{7,11}\b/);
         if (matchCedula && !sesion.cedula) {

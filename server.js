@@ -368,7 +368,7 @@ app.post('/api/auth/registro', async (req, res) => {
 
         await bqQuery(
             `INSERT INTO ${TBL_MOVIMIENTOS} (cedula, fecha, detalle, movimiento)
-             VALUES (@cedula, CURRENT_DATE(), 'Depósito de bienvenida — Banco QUIND', 50000)`,
+             VALUES (@cedula, CURRENT_TIMESTAMP(), 'Depósito de bienvenida — Banco QUIND', 50000)`,
             [{ name: 'cedula', value: cedula }]
         );
 
@@ -457,7 +457,7 @@ app.post('/api/transferencia', async (req, res) => {
                 [{ name: 'monto', value: monto }, { name: 'cedula', value: destino.cedula }]
             );
             await bqQuery(
-                `INSERT INTO ${TBL_MOVIMIENTOS} (cedula, fecha, detalle, movimiento) VALUES (@ced, CURRENT_DATE(), @det, @monto)`,
+                `INSERT INTO ${TBL_MOVIMIENTOS} (cedula, fecha, detalle, movimiento) VALUES (@ced, CURRENT_TIMESTAMP(), @det, @monto)`,
                 [
                     { name: 'ced',   value: cedulaOrigen },
                     { name: 'det',   value: `Transferencia a cuenta ${cuentaDestino} - ${detalle || ''}` },
@@ -465,7 +465,7 @@ app.post('/api/transferencia', async (req, res) => {
                 ]
             );
             await bqQuery(
-                `INSERT INTO ${TBL_MOVIMIENTOS} (cedula, fecha, detalle, movimiento) VALUES (@ced, CURRENT_DATE(), @det, @monto)`,
+                `INSERT INTO ${TBL_MOVIMIENTOS} (cedula, fecha, detalle, movimiento) VALUES (@ced, CURRENT_TIMESTAMP(), @det, @monto)`,
                 [
                     { name: 'ced',   value: destino.cedula },
                     { name: 'det',   value: `Transferencia recibida - ${detalle || ''}` },
