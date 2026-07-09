@@ -941,9 +941,9 @@ Responde *1* o *2*`
         };
         const mensajeEfectivo = menuMap[textoUsuario.trim()] || textoUsuario;
 
-        // ════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════
         // FLUJO NORMAL — identificación y agente
-        // ════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════
 
         const matchCedula = mensajeEfectivo?.match(/\b\d{7,11}\b/);
         if (matchCedula && !sesion.cedula) {
